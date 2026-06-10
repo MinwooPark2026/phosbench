@@ -14,7 +14,7 @@ slightly across nsys versions). Per trace it extracts:
   - total kernel time, total H2D / D2H memcpy time,
   - NVTX `force_eval` total (instrumented in phosbench.common),
   - cueq_kernels_present: any kernel name matching
-    /cuequivariance|cueq|segmented.*tensor|tensor_product/i.
+    /cuequivariance|cueq|segmented_polynomial|segmented.*tensor|tensor_product/i (segmented_polynomial_* are the cuEq ops kernels observed on SM86).
 
 cueq_kernels_present is the silent-fallback detector (Stage A kernel-truth
 gate): enable_cueq=True must put cuEquivariance kernels on the GPU timeline,
@@ -45,7 +45,7 @@ from phosbench.common import env_metadata, write_json
 REPO = Path(__file__).resolve().parent.parent
 
 SECTION_RE = re.compile(r"\*\*.*\((\w+)\)")
-CUEQ_RE = re.compile(r"cuequivariance|cueq|segmented.*tensor|tensor_product", re.I)
+CUEQ_RE = re.compile(r"cuequivariance|cueq|segmented_polynomial|segmented.*tensor|tensor_product", re.I)
 H2D_RE = re.compile(r"htod|host-?to-?device", re.I)
 D2H_RE = re.compile(r"dtoh|device-?to-?host", re.I)
 TAG_RE = re.compile(
