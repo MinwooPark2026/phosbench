@@ -34,10 +34,19 @@ def main() -> int:
     p.add_argument("--device", default="cpu")
     p.add_argument("--eps", type=float, default=0.010)
     p.add_argument("--delta", type=float, default=0.001)
+    p.add_argument("--control", action="store_true",
+                   help="fully-periodic control (bulk Si): expect ratio ~1.0, "
+                        "isolating the slab geometry as the trigger")
     args = p.parse_args()
 
     calc = make_calc("e3nn", "float64", model=args.model, device=args.device)
-    base = load_canonical().repeat((2, 3, 1))
+    if args.control:
+        from ase.build import bulk
+
+        base = bulk("Si", "diamond", a=5.43).repeat((2, 2, 2))
+        print("CONTROL: fully periodic bulk Si, pbc =", base.pbc.tolist())
+    else:
+        base = load_canonical().repeat((2, 3, 1))
     cell0 = base.get_cell().array.copy()
     V = abs(np.linalg.det(cell0))
     print(f"natoms={len(base)}  V={V:.2f} A^3  Lz={cell0[2, 2]:.3f} A")

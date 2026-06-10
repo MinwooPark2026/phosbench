@@ -1,0 +1,90 @@
+{
+  "model": null,
+  "passed": {
+    "medium-mpa-0": false,
+    "medium-omat-0": false,
+    "medium": false
+  },
+  "details": {
+    "medium-mpa-0": {
+      "tag": "medium-mpa-0",
+      "resolved_model": "medium-mpa-0",
+      "phonon": null,
+      "error": null,
+      "a_armchair_A": 4.236278296767162,
+      "b_zigzag_A": 3.329525407469208,
+      "da_pct": -8.305664572139344,
+      "db_pct": 0.8947093172487326,
+      "pucker_A": 2.1795368108861872,
+      "coordination_ok": true,
+      "energy_per_atom_eV": -5.383470853208684,
+      "residual_fmax_eV_per_A": 0.00012352486857838404,
+      "geometry_pass": false,
+      "passed": false,
+      "wall_s": 24.7
+    },
+    "medium-omat-0": {
+      "tag": "medium-omat-0",
+      "resolved_model": "medium-omat-0",
+      "phonon": null,
+      "error": null,
+      "a_armchair_A": 4.298899644148699,
+      "b_zigzag_A": 3.369938239755314,
+      "da_pct": -6.950224152625558,
+      "db_pct": 2.1193405986458886,
+      "pucker_A": 2.144239919567072,
+      "coordination_ok": true,
+      "energy_per_atom_eV": -5.353714831244871,
+      "residual_fmax_eV_per_A": 0.0002634156635902926,
+      "geometry_pass": false,
+      "passed": false,
+      "wall_s": 11.2
+    },
+    "medium": {
+      "tag": "medium",
+      "resolved_model": "medium",
+      "phonon": null,
+      "error": null,
+      "a_armchair_A": 4.169306705289003,
+      "b_zigzag_A": 3.386016453673319,
+      "da_pct": -9.755266119285654,
+      "db_pct": 2.6065592022217947,
+      "pucker_A": 2.164304503966413,
+      "coordination_ok": true,
+      "energy_per_atom_eV": -5.412502090840177,
+      "residual_fmax_eV_per_A": 0.0003331156396929447,
+      "geometry_pass": false,
+      "passed": false,
+      "wall_s": 8.0
+    }
+  },
+  "ranking": [],
+  "smoke": false,
+  "gates": {
+    "geom_tol_pct": 3.0,
+    "pucker_range_A": [
+      1.8,
+      2.6
+    ],
+    "phonon_tol_THz": -0.3,
+    "fmax": 0.001,
+    "literature": {
+      "a_armchair_A": 4.62,
+      "b_zigzag_A": 3.3
+    }
+  },
+  "env": {
+    "timestamp": "2026-06-10T07:53:48+0000",
+    "hostname": "workstation",
+    "python": "3.11.15",
+    "torch": "2.11.0+cu128",
+    "cuda_available": true,
+    "mace-torch": "0.3.16",
+    "cuequivariance-torch": "0.10.0",
+    "e3nn": "0.4.4",
+    "ase": "3.28.0",
+    "phonopy": "4.1.0",
+    "gpu": "NVIDIA GeForce RTX 3080 Ti",
+    "driver": "610.43.02"
+  }
+}

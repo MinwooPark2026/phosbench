@@ -1,0 +1,30 @@
+{
+  "a_armchair_A": 4.298899644148596,
+  "b_zigzag_A": 3.369938239755341,
+  "energy_eV": -21.414859324979496,
+  "natoms": 4,
+  "fmax_target": 0.001,
+  "relaxation": {
+    "model": "medium-omat-0",
+    "backend": "e3nn",
+    "dtype": "float64"
+  },
+  "literature": {
+    "a_armchair_A": 4.62,
+    "b_zigzag_A": 3.3
+  },
+  "env": {
+    "timestamp": "2026-06-10T08:01:32+0000",
+    "hostname": "workstation",
+    "python": "3.11.15",
+    "torch": "2.11.0+cu128",
+    "cuda_available": true,
+    "mace-torch": "0.3.16",
+    "cuequivariance-torch": "0.10.0",
+    "e3nn": "0.4.4",
+    "ase": "3.28.0",
+    "phonopy": "4.1.0",
+    "gpu": "NVIDIA GeForce RTX 3080 Ti",
+    "driver": "610.43.02"
+  }
+}
