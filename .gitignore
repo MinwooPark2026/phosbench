@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.DS_Store
+results/raw/
+*.nsys-rep
+*.sqlite
+*.ncu-rep
+.cache/
