@@ -644,7 +644,10 @@ def _elastic_rows(data: dict) -> dict[str, dict]:
 
 
 def fig_elastic() -> list[Path]:
-    path = _first_existing(RAW / "elastic.json", RAW / "elastic" / "elastic.json")
+    # elastic_corrected.json (energy-curvature primary; MACE slab-stress bug
+    # workaround, see scripts/90_diag_stress_hf.py) supersedes elastic.json
+    path = _first_existing(RAW / "elastic_corrected.json",
+                           RAW / "elastic.json", RAW / "elastic" / "elastic.json")
     rows = _elastic_rows(json.loads(path.read_text()))
     if not rows:
         raise FileNotFoundError(f"C11/C22 entries in {_rel(path)}")
