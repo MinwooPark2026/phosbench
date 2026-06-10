@@ -45,6 +45,10 @@ from phosbench.common import env_metadata, write_json
 REPO = Path(__file__).resolve().parent.parent
 
 SECTION_RE = re.compile(r"\*\*.*\((\w+)\)")
+# nsys >= ~2024 drops the '** Title (key):' banners; the section opener is the
+# per-report processing notice instead:
+#   Processing [foo.sqlite] with [/opt/nvidia/.../reports/cuda_gpu_kern_sum.py]...
+PROCESSING_RE = re.compile(r"Processing \[.*\] with \[.*[/\\](\w+)\.py\]")
 CUEQ_RE = re.compile(r"cuequivariance|cueq|segmented_polynomial|segmented.*tensor|tensor_product", re.I)
 H2D_RE = re.compile(r"htod|host-?to-?device", re.I)
 D2H_RE = re.compile(r"dtoh|device-?to-?host", re.I)
@@ -71,7 +75,13 @@ def split_sections(text: str) -> dict[str, list[str]]:
         if m and "**" in line:
             current = m.group(1)
             sections[current] = []
-        elif current is not None:
+            continue
+        m = PROCESSING_RE.search(line)
+        if m:
+            current = m.group(1)
+            sections[current] = []
+            continue
+        if current is not None:
             sections[current].append(line)
     return sections
 
