@@ -46,8 +46,11 @@ Run these once per material (scripts in this repo; minutes of GPU time):
   `segmented_polynomial_*`) — we caught a parser blind spot this way.
 - **Observable-level precision check**: phonons, elastic constants, NVE drift
   vs an e3nn/fp64 reference. Here fp32 errors are ≤ 3 % (typically ≤ 1 %) of
-  the model-vs-DFT error on every observable → fp32 production MD is safe
-  *for this system*.
+  the model-vs-DFT error on every observable, and NVE drift is
+  ≤ 0.011 µeV/atom/ps in every cell → fp32 production MD is safe *for this
+  system*. One hard exclusion: do **not** run barostatted (NPT) MD on
+  partially periodic systems with mace-torch 0.3.16 — the slab-stress bug
+  (§5) inflates the cell ~20 % in 50 ps regardless of precision/backend.
 - **Protocol caveat**: fp32 force noise corrupts finite-difference property
   workflows at small displacements (spurious imaginary acoustic points at
   0.01 Å that shrink ~4× or change sign at 0.05 Å; fp64 shows the opposite,

@@ -96,8 +96,14 @@ failure*, below).
      rescaled by the measured ×17.8 factor (finding 8) — uniform-scaling
      assumption, flagged — and sits well above the ~18 N/m PBE literature
      value.
-   - NVE drift & NPT lattice: arms running (25–50 ps, launched tonight);
-     numbers land in this row when the queue drains.
+   - NVE drift (512 atoms, 25 ps, 300 K): |slope| ≤ 0.011 µeV/atom/ps in all
+     three cells — fp32/cuEq conserve energy as well as fp64 at this horizon.
+     Bonus deployment fact: free-running NVE (no per-step sync) runs cuEq at
+     31 ms/step vs the 78 ms/step the per-step-synced harness measures at this
+     size — cuEq pipelines launches ahead, so the sweep's break-even numbers
+     are *conservative* for production MD.
+   - NPT lattice: invalidated by the upstream stress inconsistency — see
+     finding 8; the failure itself is precision/backend-independent.
 6. **…but fp32 changes *how you must measure*.** Finite-difference phonons at
    the standard 0.01 Å displacement pick up fp32 force noise: spurious
    imaginary acoustic artifacts at −0.007 THz (e3nn) to −0.012 THz (cuEq)
@@ -123,15 +129,21 @@ failure*, below).
    (e3nn/fp64/CPU — independent of cuEquivariance; a fully-periodic control
    on the same script isolates the slab geometry as the trigger). Stress-slope
    elastic constants are unusable on pbc=[T,T,F] geometries with mace-torch
-   0.3.16; this repo's C11/C22 use energy-curvature fits (R² > 0.9997), and
-   the NPT barostat note in `scripts/22_md_stability.py` documents the
-   consequence. Upstream issue with this minimal repro: in preparation.
+   0.3.16; this repo's C11/C22 use energy-curvature fits (R² > 0.9997).
+   The bug also poisons NPT: the barostat balances an *unscaled* kinetic
+   pressure against a ×17.8-undersized virial, so the cell inflates
+   monotonically (~+20 % in-plane over 50 ps, identical across e3nn-fp64 /
+   e3nn-fp32 / cuEq-fp32 — three-way agreement that exonerates
+   precision/backend and indicts the stress path). Deployment rule until the
+   upstream fix: no Berendsen/Parrinello-style barostats on partially
+   periodic MACE systems. Upstream issue with this minimal repro: in
+   preparation.
 
 ## Known-issues table (what we worked around, honestly)
 
 | issue | consequence here |
 |---|---|
-| cuEq + fp64 unsupported/broken upstream (MACE #1203, #1298) | matrix is 3 cells (e3nn/fp64 reference, e3nn/fp32, cuEq/fp32), not 2×2; the cuEq/fp64 probe *ran* and returned fp64-reference numbers — an nsys kernel check of that path (silent-fallback suspicion) is queued |
+| cuEq + fp64 reported broken upstream (MACE #1203, #1298) | did **not** reproduce on this stack: the cuEq/fp64 probe ran, matched the fp64 reference, and nsys shows real cuEq kernels (`segmented_polynomial_*` + fp64 `d884gemm`) — no silent fallback. The cell stays out of the headline matrix anyway: GA102 fp64 is hardware-inappropriate (finding 4) |
 | SM86 is not a tuned cuEq target (kernels are SM80/90/100+) | speedups here are a *lower bound*; verified real cuEq kernels run via Nsight (`segmented_polynomial_*`) — no silent fallback |
 | torch.compile × cuEq zero-gradient bug (cuEq #77) | torch.compile disabled everywhere |
 | MACE slab stress ×17.8 (this work, `90_diag_stress_hf.py`) | elastic constants via energy curvature; NPT relaxes ~18× slower than nominal |
