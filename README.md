@@ -162,7 +162,9 @@ python scripts/20_phonons.py --displacements 0.01,0.03,0.05
 python scripts/21_elastic.py && python scripts/23_elastic_recompute.py
 python scripts/22_md_stability.py
 bash scripts/30_profile_nsys.sh
-python scripts/40_make_plots.py
+python scripts/40_make_plots.py && python scripts/41_error_budget.py
+# stretch: repair the armchair axis by fine-tuning on GAP-20 (Zenodo 4003703)
+python scripts/50_finetune_prep.py && bash scripts/51_finetune.sh
 ```
 
 Pinned stack (verified): mace-torch 0.3.16 · cuequivariance(-torch/-ops) 0.10.0
