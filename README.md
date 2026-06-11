@@ -113,16 +113,26 @@ failure*, below).
    standard 0.3 THz 2D-flexural tolerance; the deployment point is that fp32
    makes the displacement amplitude an explicit engineering choice instead of
    a default. Hence the hybrid policy in the matrix.
-7. **Zero-shot validation failure caught before deployment.** All three
-   foundation models tested (MACE-MP-0, MACE-MPA-0, MACE-OMAT-0) reproduce the
-   zigzag lattice constant within 0.9–2.6 % but compress the soft armchair
-   axis by **7–10 %** (4.17–4.30 Å vs 4.62 Å DFT) — exactly the direction
-   whose DFT stiffness is ~4.3× lower (C11 ≈ 24 N/m vs C22 ≈ 103 N/m).
-   Anisotropy survives zero-shot (C22/C11 = 3.2 vs ~4.3 DFT) but absolute
-   armchair stiffness comes out ~38 % high against literature. A potential you
-   have not validated on *your* material's soft direction is not
-   production-ready; fine-tuning on the open GAP-20 phosphorus dataset is the
-   documented next step.
+7. **Zero-shot validation failure — caught, diagnosed, and fixed.**
+   *Caught*: all three foundation models tested (MACE-MP-0, MACE-MPA-0,
+   MACE-OMAT-0) reproduce the zigzag lattice constant within 0.9–2.6 % but
+   compress the soft armchair axis by **7–10 %** (4.17–4.30 Å vs 4.62 Å DFT)
+   — exactly the direction whose DFT stiffness is ~4.3× lower (C11 ≈ 24 vs
+   C22 ≈ 103 N/m); armchair stiffness comes out ~38 % high.
+   *Diagnosed*: a first fine-tune on the open GAP-20 dataset (forces-weighted
+   loss, 40 epochs) repaired nothing — validation energy RMSE sat at
+   106 meV/atom; the soft-axis lattice is an energy-landscape property, so
+   underfit energies leave it broken.
+   *Fixed*: an energy-weighted stage-two (SWA, E:F = 1000:100) fine-tune —
+   one GPU-day total on this same RTX 3080 Ti — lands every observable
+   within ~5 % of literature: a −2.0 %, b −0.1 %, C11 23.0 N/m (−4 %),
+   C22 100.8 N/m (−2 %), anisotropy 4.38 (DFT 4.29), top optical mode
+   463 cm⁻¹ vs 467 cm⁻¹ Raman. Precision/backend invariance persists after
+   the fix (C11: e3nn-fp64 23.01 vs cuEq-fp32 22.94).
+
+   ![model fix](results/figures/model_fix.png)
+   *Validate, then fine-tune: the gate that failed three foundation models
+   defines the acceptance test their replacement must pass.*
 8. **Measured here: MACE analytic stress is ×17.8 off on this slab.**
    Hellmann-Feynman check (`scripts/90_diag_stress_hf.py`): analytic
    `get_stress()` is 17.81× smaller than dE/dε of the same energy surface
@@ -188,6 +198,7 @@ a lab deciding *today*: [docs/engagement-memo.md](docs/engagement-memo.md).
   not what LAMMPS consumes; LAMMPS takes the exported e3nn model through its
   own cuEquivariance-accelerated ML-IAP route. An ASE-vs-LAMMPS single-GPU
   step-time comparison on this card is the next measurement on the list.
-- **Model fix**: time-boxed fine-tune on GAP-20 (Zenodo 10.5281/zenodo.4003703)
-  to repair the armchair axis, then re-run *only* the accuracy arms (the
-  benchmark numbers are model-fidelity-independent by construction).
+- **Model fix**: done — see finding 7 (`scripts/50_finetune_prep.py`,
+  `scripts/53_finetune_swa.sh`, `scripts/55_ft_validation.py`). The benchmark
+  numbers needed no re-run: they are model-fidelity-independent by
+  construction.

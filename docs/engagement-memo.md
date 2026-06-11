@@ -60,7 +60,11 @@ Run these once per material (scripts in this repo; minutes of GPU time):
 - **Model validation is the real risk, not precision.** All current MACE
   foundation models compress phosphorene's soft armchair axis by 7–10 %.
   Zero-shot ≠ production-ready: validate the soft direction of *your*
-  material; budget a fine-tune (open GAP-20 dataset) if it fails.
+  material. If it fails, budget ~one workstation-GPU-day for an
+  energy-weighted fine-tune — demonstrated here on the open GAP-20 dataset,
+  bringing every observable within ~5 % of DFT (and note the trap we hit
+  first: a forces-weighted fine-tune leaves the lattice broken; the soft
+  axis lives in the energy landscape).
 
 ## 4. Recommendation matrix
 
