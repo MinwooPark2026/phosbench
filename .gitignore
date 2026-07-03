@@ -6,3 +6,9 @@ results/raw/
 *.sqlite
 *.ncu-rep
 .cache/
+# personal working notes, not part of the public case study
+HANDOFF.md
+# raw run logs (large, machine-specific); keep locally only
+results/logs/
+# fine-tune training data (not redistributable)
+data/

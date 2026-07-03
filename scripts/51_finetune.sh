@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # Stretch - fine-tune OMAT-0 medium on GAP-20 P data, then re-run the
 # armchair-axis geometry gate with the fine-tuned model.
-# Submit on workstation:  jobq submit "cd ~/phosbench && bash scripts/51_finetune.sh"
+# Submit on the workstation:  jobq submit "cd ~/phosbench && bash scripts/51_finetune.sh"
 # fp32 training on purpose (GA102 fp64 is 1:64); E/F only - no virials, the
 # slab-stress finding makes them untrustworthy anyway. --restart_latest keeps
 # the run resumable across the box's dual-boot reboots (jobq re-enqueues).
 set -uo pipefail
 cd "$(dirname "$0")/.."
 source ~/miniforge3/etc/profile.d/conda.sh
-conda activate scicomp
+CONDA_ENV="${CONDA_ENV:-scicomp}"  # adjust to your environment name
+conda activate "$CONDA_ENV"
 mkdir -p results/logs finetune
 
 (

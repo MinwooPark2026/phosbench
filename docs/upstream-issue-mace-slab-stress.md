@@ -1,20 +1,3 @@
-# MACE 업스트림 이슈 초안 — 제출 전 확인용
-
-> **제출 위치**: https://github.com/ACEsuit/mace/issues/new
-> **제출 전 체크리스트**
-> 1. ~~중복 검색~~ — 2026-06-13 검색 완료: 동일 이슈 없음. 인접 이슈들은 학습 데이터의
->    virial 포맷(#294, #222, #395)이나 per-atom stress(#980), cuEq+fp64(#1203, #1298)로
->    전부 별개.
-> 2. (선택, 2분) workstation에서 `python scripts/90_diag_stress_hf.py --model medium`으로
->    MP-0 medium에서도 재현되는지 확인 → 재현되면 아래 본문의 "expected to be
->    model-independent"를 "reproduced with MACE-MP-0 medium as well"로 교체.
-> 3. (선택) 제출 시점의 최신 mace-torch 버전에서 한 번 더 돌려 버전 갱신.
-> 4. 제출 후: 이슈 번호를 README.md의 "Upstream issue ... in preparation" 문장에 반영.
->
-> 아래 가로줄부터 끝까지가 그대로 붙여넣을 영문 본문입니다.
-
----
-
 **Title**: Analytic stress on partially periodic (slab) systems is ~18x smaller
 than the Hellmann-Feynman strain derivative of the energy
 

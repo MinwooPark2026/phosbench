@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Stage A gate runner. Submit on workstation as ONE jobq job:
+# Stage A gate runner. Submit on the workstation as ONE jobq job:
 #   jobq submit "cd ~/phosbench && bash scripts/stage_a.sh"
 # Order matters: 00 builds the canonical structure 01/02 depend on; 02 may
 # rebuild it with the physics-gate winner model.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 source ~/miniforge3/etc/profile.d/conda.sh
-conda activate scicomp
+CONDA_ENV="${CONDA_ENV:-scicomp}"  # adjust to your environment name
+conda activate "$CONDA_ENV"
 mkdir -p results/logs results/raw/nsys
 RC=0
 

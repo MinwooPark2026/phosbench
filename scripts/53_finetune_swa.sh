@@ -8,7 +8,8 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 source ~/miniforge3/etc/profile.d/conda.sh
-conda activate scicomp
+CONDA_ENV="${CONDA_ENV:-scicomp}"  # adjust to your environment name
+conda activate "$CONDA_ENV"
 mkdir -p results/logs finetune
 
 (
