@@ -1,0 +1,30 @@
+# phosbench — curated runtime pins (exact versions from the live scicomp env).
+# Python 3.11.15.
+# torch carries a +cu128 local version tag; install it (and its CUDA wheels)
+# from the PyTorch CUDA 12.8 index:
+#     pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu128
+# For the full transitive lock (every dependency, verbatim), see
+# docs/requirements-freeze.txt.
+
+# --- core MLIP stack ---
+mace-torch==0.3.16
+e3nn==0.4.4
+torch==2.11.0+cu128
+
+# --- cuEquivariance acceleration ---
+cuequivariance==0.10.0
+cuequivariance-torch==0.10.0
+cuequivariance-ops-cu12==0.10.0
+cuequivariance-ops-torch-cu12==0.10.0
+
+# --- dispersion correction ---
+torch-dftd==0.5.3
+
+# --- atomistic / phonons ---
+ase==3.28.0
+phonopy==4.1.0
+
+# --- numerics / plotting ---
+numpy==2.4.6
+scipy==1.17.1
+matplotlib==3.10.9

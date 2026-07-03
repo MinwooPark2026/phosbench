@@ -171,6 +171,11 @@ failure*, below).
 ## Reproduce
 
 ```bash
+# environment (Python 3.11; torch needs the CUDA 12.8 wheel index)
+conda create -n scicomp python=3.11 && conda activate scicomp
+pip install -r requirements.txt \
+    --extra-index-url https://download.pytorch.org/whl/cu128
+# full transitive lock: docs/requirements-freeze.txt
 # one-time: structure + gates (fails loudly if your stack is broken)
 bash scripts/stage_a.sh
 # sweeps / accuracy arms / profiling (hours; queue-friendly, resumable)
