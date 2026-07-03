@@ -13,7 +13,7 @@ cuEquivariance 0.10.0 (full data: this repo)
 
 | dimension | finding |
 |---|---|
-| kernel profile (e3nn baseline) | at 2,944 atoms the GPU is busy 60 % of each MD step; kernel time is spread across elementwise tensor ops and SGEMMs, with index-backward (gather/scatter) 6th at 6.5 % — on the cuEq build that same gather/scatter rises to the top (30.7 %) because the tensor-product kernels shrink |
+| kernel profile (e3nn baseline) | at 2,944 atoms GPU kernels occupy 60 % of each MD step's wall-time (kernel share = summed kernel durations / NVTX force_eval span on the nsys timeline — a wall-time ratio, *not* SM occupancy; hardware counters were permission-blocked); kernel time is spread across elementwise tensor ops and SGEMMs, with index-backward (gather/scatter) 6th at 6.5 % — on the cuEq build that same gather/scatter rises to the top (30.7 %) because the tensor-product kernels shrink |
 | precision | model weights/activations fp32 by default; fp64 runs at 1/64 FLOP rate on GA102 → measured ×3.2–×10 step-time penalty and ×2 memory; fp64 is for reference data only on this hardware |
 | CPU↔GPU traffic | negligible (< 0.25 % of step time): positions down / forces up per step; this workload is **not** transfer-bound on a workstation |
 | host vs device | the real split: at 140 atoms, 92 % (e3nn/fp32) to 99 % (cuEq) of step time is host-side Python/ASE/launch overhead — the GPU idles; fp64 is the exception (50 % host, because its kernels are so slow) |
@@ -31,7 +31,7 @@ cuEquivariance 0.10.0 (full data: this repo)
    the measured crossover (~310–450 atoms for medium/large models, ~950–980
    for small) cuEq is *slower* (×0.74–0.96, down to ×0.40 for OMAT-medium at
    64 atoms). Keep e3nn, or batch many small systems.
-3. **After cuEq, you are host-bound again** (GPU ≤ 10 % busy at 3k atoms).
+3. **After cuEq, you are host-bound again** (GPU kernels occupy ≤ 10 % of step wall-time at 3k atoms).
    The next step is not a faster kernel — it is the integration layer:
    LAMMPS ML-IAP (Kokkos) for production runs, or batching/CUDA-graph
    approaches. Plan the workflow migration before scaling up.
@@ -47,7 +47,7 @@ Run these once per material (scripts in this repo; minutes of GPU time):
 - **Observable-level precision check**: phonons, elastic constants, NVE drift
   vs an e3nn/fp64 reference. Here fp32 errors are ≤ 3 % (typically ≤ 1 %) of
   the model-vs-DFT error on every observable, and NVE drift is
-  ≤ 0.011 µeV/atom/ps in every cell → fp32 production MD is safe *for this
+  ≤ 0.012 µeV/atom/ps in every cell → fp32 production MD is safe *for this
   system*. One hard exclusion: do **not** run barostatted (NPT) MD on
   partially periodic systems with mace-torch 0.3.16 — the slab-stress bug
   (§5) inflates the cell ~20 % in 50 ps regardless of precision/backend.
@@ -61,7 +61,8 @@ Run these once per material (scripts in this repo; minutes of GPU time):
   foundation models compress phosphorene's soft armchair axis by 7–10 %.
   Zero-shot ≠ production-ready: validate the soft direction of *your*
   material. If it fails, budget ~one workstation-GPU-day for an
-  energy-weighted fine-tune — demonstrated here on the open GAP-20 dataset,
+  energy-weighted fine-tune (measured training wall-time here: ~2 h) —
+  demonstrated here on the open GAP-20 dataset,
   bringing every observable within ~5 % of DFT (and note the trap we hit
   first: a forces-weighted fine-tune leaves the lattice broken; the soft
   axis lives in the energy landscape).

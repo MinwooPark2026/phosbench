@@ -65,21 +65,27 @@ failure*, below).
    (small). For three of four models the wall-clock (MD) crossover lands later
    than the bare force-call crossover — ASE host overhead delays it; medium is
    the measured exception (373 MD vs 454 force-call). Below break-even cuEq
-   *costs* up to 26 % (and 60 % for OMAT-medium at 64 atoms).
+   *costs* up to 26 % (and 60 % for OMAT-medium at 64 atoms). The crossover
+   positions carry roughly ±1 ladder-rung uncertainty from the unlocked
+   consumer boost clocks (SM clock/temp logged per data point; medians of
+   per-step laps reported).
 2. **cuEquivariance's bigger gift on 12 GB is memory, not speed.** At 2,944
    atoms (medium model) cuEq peaks at 1.4 GiB where e3nn needs 7.4 GiB
    (×5.3; ×3.4–6.1 across models); the reachable system size grows ×3.9
    (2,944 → 11,520 atoms). The OOM boundary per config is tabulated in
    `results/figures/oom_boundary.csv`.
-3. **After acceleration, the bottleneck is the host.** Nsight: at 140 atoms the
-   GPU is busy 1 % of the step (cuEq) — faster kernels cannot help; at 2,944
-   atoms e3nn keeps the GPU 60 % busy vs cuEq's 10 %. cuEq shifts the limiter
-   from kernels to the Python/ASE loop: the production path beyond this study
-   is LAMMPS ML-IAP (Kokkos) or CUDA-graph-style batching, per NVIDIA's
-   datacenter results.
+3. **After acceleration, the bottleneck is the host.** Nsight: at 140 atoms
+   GPU kernels occupy 1 % of step wall-time (cuEq) — faster kernels cannot
+   help; at 2,944 atoms e3nn kernels occupy 60 % of step wall-time vs cuEq's
+   10 % (kernel share = summed kernel durations / NVTX force_eval span on the
+   nsys timeline — a wall-time ratio, *not* SM occupancy; hardware counters
+   were permission-blocked). cuEq shifts the limiter from kernels to the
+   Python/ASE loop: the production path beyond this study is LAMMPS ML-IAP
+   (Kokkos) or CUDA-graph-style batching, per NVIDIA's datacenter results.
 4. **fp64 is effectively unavailable on consumer Ampere.** ×3.2–×10 measured
-   cost (the fp64 GEMMs dominate the timeline: `cutlass...d884gemm` kernels at
-   74 % of kernel time), ×2 memory, last working rung 1,408 atoms (OOM at
+   cost (the fp64 GEMMs dominate the timeline: the three largest
+   `cutlass...d884gemm` kernels take ~74 % of kernel time, and all `d884gemm`
+   kernels together ≈ 82 %), ×2 memory, last working rung 1,408 atoms (OOM at
    2,944). Consumer deployment *forces* the fp32 question — which is exactly
    why the accuracy gates below matter. (On A100/H100 fp64 is 1:2, so the
    datacenter column of the matrix differs.)
@@ -92,11 +98,12 @@ failure*, below).
      the bulk Raman lines (context, not a fitted comparison).
    - Anisotropic elastic constants: C11/C22 = 33/105 N/m, identical to 0.22 %
      across e3nn-fp64 / e3nn-fp32 / cuEq-fp32, from relaxed-ion energy
-     curvature (R² > 0.9997). C12 ≈ 30 N/m comes from the stress cross-slope
-     rescaled by the measured ×17.8 factor (finding 8) — uniform-scaling
-     assumption, flagged — and sits well above the ~18 N/m PBE literature
-     value.
-   - NVE drift (512 atoms, 25 ps, 300 K): |slope| ≤ 0.011 µeV/atom/ps in all
+     curvature (R² > 0.9997). C12 is *not* reliably determinable on this
+     pbc=[T,T,F] geometry with mace-torch 0.3.16: the ≈30 N/m obtained from
+     the stress cross-slope rescaled by the measured ×17.8 factor (finding 8)
+     rests on a uniform-scaling assumption, so it is indicative only and
+     should not be weighed against the ~18 N/m PBE literature value.
+   - NVE drift (512 atoms, 25 ps, 300 K): |slope| ≤ 0.012 µeV/atom/ps in all
      three cells — fp32/cuEq conserve energy as well as fp64 at this horizon.
      Bonus deployment fact: free-running NVE (no per-step sync) runs cuEq at
      31 ms/step vs the 78 ms/step the per-step-synced harness measures at this
@@ -124,8 +131,9 @@ failure*, below).
    106 meV/atom; the soft-axis lattice is an energy-landscape property, so
    underfit energies leave it broken.
    *Fixed*: an energy-weighted stage-two (SWA, E:F = 1000:100) fine-tune —
-   one GPU-day total on this same RTX 3080 Ti — lands every observable
-   within ~5 % of literature: a −2.0 %, b −0.1 %, C11 23.0 N/m (−4 %),
+   ≈2 h of training wall-time on this same RTX 3080 Ti (both stages, from the
+   training logs; budget ~a GPU-day end-to-end with data prep and validation
+   iterations) — lands every observable within ~5 % of literature: a −2.0 %, b −0.1 %, C11 23.0 N/m (−4 %),
    C22 100.8 N/m (−2 %), anisotropy 4.38 (DFT 4.29), top optical mode
    463 cm⁻¹ vs 467 cm⁻¹ Raman. Precision/backend invariance persists after
    the fix (C11: e3nn-fp64 23.01 vs cuEq-fp32 22.94).
