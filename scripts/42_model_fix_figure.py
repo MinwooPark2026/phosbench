@@ -2,8 +2,8 @@
 """Before/after figure for the model-fix arc: zero-shot vs GAP-20 fine-tuned.
 
 Signed deviation from DFT/Raman literature per observable. The story in one
-frame: the zero-shot failure lives on the soft armchair axis; one GPU-day of
-energy-weighted fine-tuning brings every observable within ~5 %.
+frame: the zero-shot failure lives on the soft armchair axis; ~2 h of
+energy-weighted fine-tuning (training wall-time) brings every observable within ~5 %.
 """
 
 import json
@@ -55,7 +55,7 @@ def main() -> int:
     fig, ax = plt.subplots(figsize=(9, 5))
     ax.bar(x - w / 2, dev_b, w, label="zero-shot MACE-OMAT-0", color="#D55E00")
     ax.bar(x + w / 2, dev_a, w,
-           label="fine-tuned on GAP-20 (1 GPU-day)", color="#009E73")
+           label="fine-tuned on GAP-20 (~2 h fine-tune)", color="#009E73")
     for xi, (vb, va) in enumerate(zip(dev_b, dev_a)):
         ax.annotate(f"{vb:+.1f}%", (xi - w / 2, vb), ha="center",
                     va="bottom" if vb >= 0 else "top", fontsize=9)
@@ -66,7 +66,7 @@ def main() -> int:
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
     ax.set_ylabel("deviation from DFT/Raman literature (%)")
-    ax.set_title("Validate, then fine-tune: one GPU-day repairs the soft axis\n"
+    ax.set_title("Validate, then fine-tune: a ~2 h fine-tune repairs the soft axis\n"
                  "(found by the geometry gate, fixed with energy-weighted "
                  "GAP-20 fine-tuning)")
     ax.legend()

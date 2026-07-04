@@ -990,8 +990,13 @@ def fig_timeshare() -> list[Path]:
         ax.bar(x, vals, 0.65, bottom=bottom, color=color, label=comp)
         bottom += vals
     for i, r in enumerate(rows):
-        ax.text(i, r["shares"][0] / 2, f"{100 * r['shares'][0]:.0f}%",
-                ha="center", va="center", fontsize=7, color="w")
+        share = r["shares"][0]
+        if share < 0.06:  # bar too small to hold its label - place above, in bar color
+            ax.text(i, share + 0.015, f"{100 * share:.0f}%",
+                    ha="center", va="bottom", fontsize=7, color="#0072B2")
+        else:
+            ax.text(i, share / 2, f"{100 * share:.0f}%",
+                    ha="center", va="center", fontsize=7, color="w")
     ax.set_xticks(x, labels, fontsize=7.5)
     ax.set_ylim(0, 1.0)
     ax.set_ylabel("share of step time")
