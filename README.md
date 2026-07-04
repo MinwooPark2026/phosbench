@@ -4,9 +4,11 @@
 an end-to-end deployment study on black phosphorus (RTX 3080 Ti, 12 GB).**
 
 Machine-learned interatomic potentials (MACE foundation models) promise
-DFT-quality MD at classical cost — but the published acceleration numbers
-(NVIDIA's cuEquivariance-in-LAMMPS results, Oct 2025; arXiv:2510.23621) are
-water benchmarks on datacenter A100/H100s, throughput-first. The hardware a
+DFT-quality MD at classical cost — but the headline acceleration numbers
+(NVIDIA's cuEquivariance-in-LAMMPS results, NVIDIA Technical Blog, Oct 2025)
+are water benchmarks on datacenter A100/H100s, throughput-first, and the
+closest independent study (arXiv:2510.23621) is likewise water-throughput,
+covering e3nn-vs-cuEq precision arms on an RTX 2080 Ti. The hardware a
 typical university lab actually owns is a workstation RTX card, where fp64
 runs at 1/64 of fp32 throughput and VRAM is 12 GB. This study measures, on
 monolayer phosphorene (a maximally anisotropic 2D semiconductor), what it
