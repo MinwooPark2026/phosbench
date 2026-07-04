@@ -16,6 +16,8 @@ observables* (phonon dispersions, anisotropic elastic constants, energy
 drift — not force RMSE), and where the time actually goes (Nsight). Every
 figure caption states the deployment decision it informs.
 
+**The 2-page decision memo for a lab deciding today → [docs/engagement-memo.md](docs/engagement-memo.md).**
+
 > **Scope discipline**: this extends the published datacenter throughput
 > results to the consumer break-even boundaries and solid-state observables
 > that drive real lab deployment decisions. It is *not* the first consumer
@@ -25,6 +27,14 @@ figure caption states the deployment decision it informs.
 > stack.
 
 ## TL;DR — the recommendation matrix
+
+> **In plain terms:** for small simulations (below roughly 400 atoms) the
+> default settings already win, and turning on the "GPU accelerator" flag
+> actually makes them slower. Above that size, that one flag cuts the time per
+> step by 1.4–5× and lets a single 12 GB workstation card handle ~3.9× bigger
+> simulations. Using the faster (single-precision) math is physically safe here
+> — the real risk was never the numbers, it was the AI model itself, which
+> silently got a key property wrong until we caught it and fixed it.
 
 For a lab running MACE-class potentials on a 12 GB RTX workstation:
 
@@ -57,6 +67,25 @@ failure*, below).
 | *Below the model-dependent crossover (~313–982 atoms), leave cuEq off — the host, not the kernel, limits the step.* | *On 12 GB, cuEq buys a ×3.9 reachable-size increase before it buys speed; size production cells from `oom_boundary.csv`.* |
 | ![time share](results/figures/time_share.png) | ![phonons](results/figures/phonon_dispersion.png) |
 | *Faster kernels cannot fix host-bound small systems; after cuEq, the ASE loop is the next bottleneck.* | *cuEq/fp32 (dashed) reproduces the e3nn/fp64 dispersion to ≤ 0.08 cm⁻¹ per branch — fp32 production MD is physically safe here.* |
+
+<details>
+<summary><b>The raw throughput and the two crossovers behind the map</b> (click to expand)</summary>
+
+![throughput vs size](results/figures/throughput_vs_size.png)
+*The un-normalized view behind the speedup map: absolute MD throughput
+(ns/day) per backend/precision as system size grows; × marks the last size
+that fits in 12 GB. cuEq/fp32 owns the large-system frontier, e3nn dies early
+to OOM, and fp64 is off the bottom — this is the data the recommendation
+matrix compresses.*
+
+![break-even modes](results/figures/breakeven_modes.png)
+*Force-call (kernel) crossover vs MD-loop (wall-clock) crossover, per model:
+the kernel speedup usually leads the wall-clock one because ASE host overhead
+delays the MD crossover — so **enabling cuEq the moment the kernels break even
+is premature**; wait for the MD line. Medium is the measured exception
+(MD 373 vs force-call 454 atoms).*
+
+</details>
 
 ## Key findings
 
@@ -111,6 +140,29 @@ failure*, below).
      are *conservative* for production MD.
    - NPT lattice: invalidated by the upstream stress inconsistency — see
      finding 8; the failure itself is precision/backend-independent.
+
+   <details>
+   <summary><b>The three gate figures behind finding 5</b> (click to expand)</summary>
+
+   ![parity gates](results/figures/parity_gates.png)
+   *Swapping e3nn→cuEq at fp32 is numerically free (both bars far under the
+   1 meV/atom, 1 meV/Å gate line); the fp32↔fp64 gap is larger but still
+   ~2 orders below the gate — precision, not backend, is the knob that moves,
+   and even it stays inside spec.*
+
+   ![elastic anisotropy](results/figures/elastic_anisotropy.png)
+   *C11/C22 are identical to 0.22 % across all three cells and reproduce the
+   ~3–4× DFT anisotropy (dashed lines: DFT C11 ≈ 24, C22 ≈ 103 N/m — reference,
+   not a fitted target). Accept a cell for strained MD only if it keeps
+   C22 ≫ C11; C12 is the one number off the broken stress path, shown for
+   completeness, not trusted.*
+
+   ![NVE drift](results/figures/nve_drift.png)
+   *NVE energy drift over 25 ps at 300 K: |slope| ≤ 0.012 µeV/atom/ps in all
+   three cells — fp32/cuEq conserve energy as well as fp64 at this horizon, so
+   accept a cell for long production MD on this criterion.*
+
+   </details>
 6. **…but fp32 changes *how you must measure*.** Finite-difference phonons at
    the standard 0.01 Å displacement pick up fp32 force noise: spurious
    imaginary acoustic artifacts at −0.007 THz (e3nn) to −0.012 THz (cuEq)
@@ -120,6 +172,11 @@ failure*, below).
    standard 0.3 THz 2D-flexural tolerance; the deployment point is that fp32
    makes the displacement amplitude an explicit engineering choice instead of
    a default. Hence the hybrid policy in the matrix.
+
+   ![phonon noise vs displacement](results/figures/phonon_noise_vs_displacement.png)
+   *fp32 finite-difference force noise falls as the displacement grows, so the
+   0.01 Å textbook default is the worst case for fp32 — keep displaced-force
+   phonon/elastic workflows on e3nn/fp64 and production MD on cuEq/fp32.*
 7. **Zero-shot validation failure — caught, diagnosed, and fixed.**
    *Caught*: all three foundation models tested (MACE-MP-0, MACE-MPA-0,
    MACE-OMAT-0) reproduce the zigzag lattice constant within 0.9–2.6 % but
@@ -156,6 +213,15 @@ failure*, below).
    upstream fix: no Berendsen/Parrinello-style barostats on partially
    periodic MACE systems. Upstream issue with this minimal repro: in
    preparation.
+
+   ![NPT lattice inflation](results/figures/npt_lattice.png)
+   *This is the **bug manifestation, not a physical result**: with the
+   ×17.8-undersized virial the barostat cannot find equilibrium, so both
+   in-plane lattice constants inflate monotonically (~+20 % over 50 ps) and
+   walk straight out of the fp64 reference band — identically across
+   e3nn-fp64 / e3nn-fp32 / cuEq-fp32. Read it as "what the stress bug does to a
+   barostat," **not** as thermal expansion. The three-way agreement is the
+   evidence that exonerates precision/backend and indicts the stress path.*
 
 ## Known-issues table (what we worked around, honestly)
 
@@ -197,6 +263,44 @@ Pinned stack (verified): mace-torch 0.3.16 · cuequivariance(-torch/-ops) 0.10.0
 Protocol design, gate thresholds and the schedule that produced this in
 ~2 days: [PROTOCOL.md](PROTOCOL.md). The 2-page consulting-style summary for
 a lab deciding *today*: [docs/engagement-memo.md](docs/engagement-memo.md).
+
+## MPI communication share — a scale-out profiling demo
+
+Everything above is single-rank, single-GPU ASE. The scale-out question an SA
+must answer first is *when does adding ranks stop paying?* — so here is the
+methodology on a workload that runs on the CPU head node today.
+
+**What was measured.** A fixed-size Lennard-Jones melt (500,000 atoms, 800 MD
+steps, LAMMPS 22 Jul 2025 + OpenMPI on a Ryzen 5800X) run as strong scaling at
+np ∈ {1, 2, 4, 8} — one rank per physical core, SMT deliberately unused. Each
+run's LAMMPS loop-timing breakdown (Pair / Neigh / Comm / …) was parsed
+straight from the log.
+
+![MPI comm share](results/figures/mpi_comm_share.png)
+*Comm share rises 0.7 %→9.0 % from 1→8 ranks (LJ melt, 500k atoms) — profile a
+customer this way to find the rank count where communication eats the pair-time
+win and scale-out stops paying.*
+
+| ranks | Pair % | Comm % | loop time |
+|------:|-------:|-------:|----------:|
+| 1 | 84.6 | 0.7 | 134.8 s |
+| 2 | 82.5 | 1.5 | 71.7 s |
+| 4 | 79.0 | 2.5 | 39.5 s |
+| 8 | 70.1 | 9.0 | 24.9 s |
+
+As ranks rise on the fixed problem the communication share climbs (0.7 %→9.0 %)
+while the pair (force-compute) share falls (84.6 %→70.1 %); wall time still
+drops (5.4× at 8 ranks) but the marginal return is shrinking. The rank count
+where the rising Comm tax overtakes the marginal Pair speedup is where
+scale-out stops paying — the single number to establish before committing a
+customer to more nodes/GPUs.
+
+**Scope (honest).** Classical LJ, single node, one run per rank count — a
+methodology demonstration, **not** MACE-in-LAMMPS. The MACE path at scale is
+LAMMPS ML-IAP (`pair_style mace`), where LAMMPS prints the *same* Pair/Comm
+breakdown, so this reading transfers directly; only the absolute Pair cost (a
+neural potential is far heavier than LJ) and thus the comm-vs-compute crossover
+rank change.
 
 ## Where this goes next
 

@@ -17,7 +17,7 @@ cuEquivariance 0.10.0 (full data: this repo)
 | precision | model weights/activations fp32 by default; fp64 runs at 1/64 FLOP rate on GA102 → measured ×3.2–×10 step-time penalty and ×2 memory; fp64 is for reference data only on this hardware |
 | CPU↔GPU traffic | negligible (< 0.25 % of step time): positions down / forces up per step; this workload is **not** transfer-bound on a workstation |
 | host vs device | the real split: at 140 atoms, 92 % (e3nn/fp32) to 99 % (cuEq) of step time is host-side Python/ASE/launch overhead — the GPU idles; fp64 is the exception (50 % host, because its kernels are so slow) |
-| MPI share | 0 by construction (single-rank ASE driver). At scale-out the ratio to watch is pair-vs-comm time in LAMMPS's native breakdown; the harness's next measurement is an 8-rank CPU LAMMPS run to demonstrate the methodology before any multi-GPU commitment |
+| MPI share | Measured, methodology demo (classical LJ, not MACE): strong-scaling a fixed 500k-atom LJ melt on 1→8 CPU cores, Comm rises 0.7 %→9.0 % of loop time while Pair falls 84.6 %→70.1 % (wall 135 s→25 s, 5.4×). This is how you locate the rank count where the comm tax overtakes the marginal pair-time win — the number to fix before any multi-node/GPU commitment. Same LAMMPS Pair/Comm breakdown applies to MACE via LAMMPS ML-IAP (pair_style mace). See results/figures/mpi_comm_share.png |
 | memory scaling | activation memory grows steeply with neighbors; e3nn/medium OOMs at ~3k atoms on 12 GB |
 | IO / data types | extxyz trajectories, float32 tensors; checkpoint-restart cost negligible vs step time |
 
@@ -87,3 +87,36 @@ Run these once per material (scripts in this repo; minutes of GPU time):
 - Everything in this memo is reproducible from the repo in about one GPU-day
   (the long pole is the MD stability arms); the harness re-runs unmodified on
   datacenter hardware for procurement comparisons.
+
+## 6. Cost framing
+
+Everything below is in this card's own currency — GPU-days on the single
+RTX 3080 Ti — derived straight from the measured throughput in §4 (a campaign
+of *T* ns costs *T* / (ns/day) GPU-days). Nothing is extrapolated.
+
+| campaign | 64 at. (2.0 ns/day) | 1.4k at. (1.3) | 2.9k at. (0.57) | 11.5k at. (0.25) |
+|---|---|---|---|---|
+| 1 ns trajectory | 0.5 GPU-day | 0.8 GPU-day | 1.8 GPU-days | 4.0 GPU-days |
+| 5 ns trajectory | 2.5 GPU-days | 3.8 GPU-days | 8.8 GPU-days | 20 GPU-days |
+
+- **The one-time model-fix tax is small and already paid.** Repairing the
+  soft-axis failure cost ~2 h of measured training wall-time on this same card
+  (both fine-tune stages; budget ~1 GPU-day end-to-end with data prep and
+  validation iterations). Amortized over any real MD campaign it is noise —
+  validate and fine-tune once per material, then run.
+- **Stay on the RTX** for screening and for single trajectories up to a few ns
+  below ~3k atoms: a 5 ns run there is a long weekend, not a cluster request.
+- **A second RTX card pays off** only for *throughput-parallel* work — many
+  independent small/medium systems (screening ensembles, replica sweeps) — not
+  for making one trajectory faster; these runs don't communicate, so two cards
+  ≈ 2× jobs/day with no scaling loss.
+- **Request A100/datacenter time** at the measured handoff: **> 11k atoms or
+  multi-ns trajectories**, where a single 5 ns run already costs ~20 GPU-days
+  (three weeks of wall-clock) on the RTX and above ~5k atoms this card is for
+  relaxations and snapshots, not multi-ns MD. The A100 also reopens fp64 at
+  1:2 if a reference trajectory needs it.
+- **Vs DFT-AIMD (order-of-magnitude context only — not measured here):** a
+  first-principles MD trajectory of these system sizes is categorically more
+  expensive than any row above, by many orders of magnitude in core-hours; the
+  point of MLIP deployment is that these GPU-day campaigns exist *at all* where
+  AIMD would be infeasible. No specific DFT timing is claimed.
