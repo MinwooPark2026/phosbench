@@ -53,15 +53,37 @@ LIT_C11_NPM, LIT_C22_NPM = 24.0, 103.0  # DFT lit., monolayer (armchair/zigzag)
 OKABE_ITO = ["#0072B2", "#E69F00", "#009E73", "#D55E00",
              "#CC79A7", "#56B4E9", "#F0E442", "#000000"]
 
-# Stable colors per cell so a config looks the same in every figure.
+# Colorblind-safe backend hue pair (Okabe-Ito): the two production backends must
+# be separable by hue AND by line style (see _cell_style) for deuteranopia-safe
+# reading.  cuEq = blue, e3nn = vermillion; the fp64 accuracy reference is black
+# so it never blends into either backend family.
+CUEQ_BLUE = "#0072B2"       # cuEq (production candidate)
+E3NN_VERM = "#D55E00"       # e3nn (reference backend)
+FP64_REF = "#000000"        # fp64 accuracy reference (never a speed denominator)
+
+# Stable colors per cell so a config looks the same in every figure.  Color now
+# encodes the BACKEND (blue=cuEq, vermillion=e3nn) with the fp64 reference held
+# out in black; line style (solid=cuEq, dashed=e3nn) carries the same split so
+# the figures survive grayscale / color-vision deficiency.
 CELL_COLORS = {
-    "e3nn/float64": OKABE_ITO[0],   # reference
-    "e3nn/float32": OKABE_ITO[1],   # precision arm
-    "cueq/float32": OKABE_ITO[2],   # production candidate
-    "cueq/float64": OKABE_ITO[3],   # broken upstream - tolerated, never required
+    "e3nn/float64": FP64_REF,       # accuracy reference
+    "e3nn/float32": E3NN_VERM,      # e3nn backend
+    "cueq/float32": CUEQ_BLUE,      # cuEq backend (production candidate)
+    "cueq/float64": OKABE_ITO[4],   # broken upstream - tolerated, never required
 }
 MODEL_MARKERS = {"medium": "o", "medium-mpa-0": "s", "medium-omat-0": "^",
                  "small": "v", "large": "D"}
+
+
+def _cell_linestyle(cell: str) -> str:
+    """Redundant encoding of the backend split for colorblind/grayscale safety:
+    cuEq solid, e3nn dashed; the fp64 reference stays solid so it reads as the
+    baseline the other two are compared against."""
+    if cell.startswith("cueq"):
+        return "-"
+    if cell == "e3nn/float64":
+        return "-"                  # reference baseline
+    return "--"                     # e3nn/fp32 (and any other e3nn arm)
 
 
 def _setup_style():
@@ -193,13 +215,21 @@ def _npz_pick(z, *keys) -> np.ndarray:
     raise KeyError(f"none of {keys} in npz (has {z.files})")
 
 
-def _save(fig, name: str, src=None) -> Path:
+def _save(fig, name: str, src=None, dpi=200) -> Path:
     FIGS.mkdir(parents=True, exist_ok=True)
     if src is not None:
-        fig.text(0.995, 0.005, f"source: {src}", ha="right", va="bottom",
-                 fontsize=5.5, color="0.55")
+        # Figure-level watermark in a reserved bottom strip, OUTSIDE the axes, so
+        # it can never collide with bars/ticks (it used to land on the last bar
+        # of time_share.png).  constrained_layout is told to keep the axes above
+        # the strip via a bottom rect; the text then sits in guaranteed
+        # whitespace at the very bottom-left of the figure.
+        eng = fig.get_layout_engine()
+        if eng is not None and hasattr(eng, "set"):
+            eng.set(rect=(0.0, 0.035, 1.0, 0.965))
+        fig.text(0.006, 0.008, f"source: {src}", ha="left", va="bottom",
+                 fontsize=6, color="0.55")
     path = FIGS / name
-    fig.savefig(path, dpi=150)
+    fig.savefig(path, dpi=dpi)
     plt.close(fig)
     print(f"[phosbench] wrote {_rel(path)}", flush=True)
     return path
@@ -224,9 +254,12 @@ def fig_throughput() -> list[Path]:
         x = [r["natoms"] for r in ok]
         y = [r["ns_per_day_1fs"] for r in ok]
         label = f"{cell} {model}" + ("" if device == "cuda" else f" [{device}]")
+        # CPU runs stay dotted; on-GPU curves get the backend split
+        # (cuEq solid / e3nn dashed) so the two families separate without hue.
+        ls = ":" if device != "cuda" else _cell_linestyle(cell)
         ax.plot(x, y, lw=1.3, ms=4, color=_cell_color(cell),
                 marker=_model_marker(model),
-                linestyle="-" if device == "cuda" else ":", label=label)
+                linestyle=ls, label=label)
         if any(r.get("error") == "oom" for r in rows):
             # x at the last size that still fit - the practical ceiling
             ax.plot([x[-1]], [y[-1]], "x", ms=11, mew=2.2,
@@ -263,7 +296,9 @@ def _crossings(x, y, level=1.0) -> list[float]:
     return out
 
 
-def fig_breakeven() -> list[Path]:
+def _breakeven_series() -> dict[tuple, dict[str, dict[int, float]]]:
+    """{(model, device, mode): {cell: {natoms: ms_per_step_median}}} for the two
+    fp32 backends, from which the e3nn/cuEq per-step speedup ratio is built."""
     series: dict[tuple, dict[str, dict[int, float]]] = {}
     for r in _load_sweep():
         c = r.get("config", {})
@@ -274,45 +309,154 @@ def fig_breakeven() -> list[Path]:
         key = (c.get("model"), c.get("device"), c.get("mode"))
         series.setdefault(key, {}).setdefault(cell, {})[r["natoms"]] = \
             r["ms_per_step_median"]
+    return series
 
-    fig, ax = plt.subplots(figsize=(7, 4.5))
+
+def _ratio_curve(cells: dict) -> tuple[list[int], list[float]] | None:
+    e3, cu = cells.get("e3nn/float32"), cells.get("cueq/float32")
+    if not e3 or not cu:
+        return None
+    common = sorted(set(e3) & set(cu))
+    if not common:
+        return None
+    return common, [e3[n] / cu[n] for n in common]
+
+
+def fig_breakeven() -> list[Path]:
+    series = _breakeven_series()
     models = sorted({k[0] for k in series})
+    # per-model color (Okabe-Ito) + per-model marker; the backend split lives in
+    # the RATIO itself (>1 = cuEq faster), so color here encodes model size, not
+    # backend, and the companion figure carries the mode (kernel vs wall-clock)
+    # story with line style.
     colors = {m: OKABE_ITO[i % len(OKABE_ITO)] for i, m in enumerate(models)}
-    notes, drawn = [], 0
+
+    # ----- money chart: MD (wall-clock) mode only, one line per model -------- #
+    # MD is the production-representative crossover a lab actually decides on;
+    # force-call vs MD lives in the companion breakeven_modes.png.
+    fig, ax = plt.subplots(figsize=(8, 5))
+    drawn = 0
+    crosses = []  # (xc, model) for staggered labels once axes limits are known
     for (model, device, mode), cells in sorted(series.items()):
-        e3, cu = cells.get("e3nn/float32"), cells.get("cueq/float32")
-        if not e3 or not cu:
+        if mode != "md" or device != "cuda":
             continue
-        common = sorted(set(e3) & set(cu))
-        if not common:
+        rc = _ratio_curve(cells)
+        if rc is None:
             continue
-        ratio = [e3[n] / cu[n] for n in common]
-        label = f"{model} {mode}" + ("" if device == "cuda" else f" [{device}]")
-        ax.plot(common, ratio, lw=1.4, ms=4, marker="o",
-                color=colors[model],
-                linestyle="-" if mode == "force_call" else "--", label=label)
+        common, ratio = rc
+        ax.plot(common, ratio, lw=1.7, ms=5, marker=_model_marker(model),
+                color=colors[model], linestyle="-", label=f"{model}")
         drawn += 1
         cross = _crossings(common, ratio)
         if cross:
-            ax.axvline(cross[0], color=colors[model], ls=":", lw=0.9, alpha=0.7)
-            notes.append(f"{label}: break-even ~{cross[0]:,.0f} atoms")
+            xc = cross[0]
+            ax.axvline(xc, color=colors[model], ls=":", lw=1.0, alpha=0.75)
+            crosses.append((xc, model))
         else:
-            who = "cueq" if ratio[-1] > 1.0 else "e3nn"
-            notes.append(f"{label}: no crossing ({who} faster throughout)")
+            who = "cuEq" if ratio[-1] > 1.0 else "e3nn"
+            ax.annotate(f"{model}: {who} faster\nthroughout",
+                        xy=(common[len(common) // 2], ratio[len(ratio) // 2]),
+                        fontsize=7.5, color=colors[model])
     if not drawn:
         raise FileNotFoundError("matched e3nn/float32 + cueq/float32 records "
                                 "in results/raw/sweep*.jsonl")
 
-    ax.axhline(1.0, color="0.4", ls="-", lw=1.0)
+    # Compact per-crossover labels, staggered in y (by ascending crossover size)
+    # so that near-coincident crossovers (large ~346 vs medium ~373) don't
+    # collide; a short leader ties each label back to its own dotted line.
+    crosses.sort()
+    y_levels = [0.62, 0.42, 0.24, 0.08]
+    for i, (xc, model) in enumerate(crosses):
+        yl = y_levels[i % len(y_levels)]
+        ax.annotate(f"{model}  ~{xc:,.0f}", xy=(xc, 1.0),
+                    xytext=(xc, yl), textcoords=("data", "axes fraction"),
+                    ha="center", va="center", fontsize=8.5,
+                    color=colors[model], fontweight="bold",
+                    arrowprops=dict(arrowstyle="-", color=colors[model],
+                                    lw=0.8, alpha=0.6))
+
+    ax.axhline(1.0, color="0.4", ls="-", lw=1.1)
     ax.set_xscale("log")
     ax.set_xlabel("atoms")
-    ax.set_ylabel("speedup  e3nn/fp32 / cueq/fp32  (median ms/step ratio)")
-    ax.set_title("Switch to cuEq only above break-even -\n"
-                 "kernel crossover (solid) lands earlier than wall-clock (dashed)")
-    ax.text(0.02, 0.98, "\n".join(notes), transform=ax.transAxes, va="top",
-            fontsize=7, bbox=dict(boxstyle="round", fc="w", ec="0.7", alpha=0.9))
-    ax.legend(loc="lower right")
-    return [_save(fig, "speedup_breakeven.png", "sweep*.jsonl")]
+    ax.set_ylabel("per-step speedup (cuEq / e3nn, >1 = cuEq faster)")
+    ax.set_title("Switch to cuEq only above its break-even size\n"
+                 "(MD wall-clock crossover; larger models pay off sooner)")
+    ax.legend(loc="upper left", title="model")
+    ax.text(0.995, 0.02,
+            "force-call vs MD crossover: see breakeven_modes.png",
+            transform=ax.transAxes, ha="right", va="bottom", fontsize=7,
+            color="0.4")
+    out = [_save(fig, "speedup_breakeven.png", "sweep*.jsonl (md mode)")]
+
+    # ----- companion: force-call vs MD crossover, per model ------------------ #
+    out += _fig_breakeven_modes(series, models, colors)
+    return out
+
+
+def _fig_breakeven_modes(series, models, colors) -> list[Path]:
+    """Companion figure making the kernel(force-call) vs wall-clock(MD) crossover
+    distinction visible: both modes overlaid per model.  Crossovers are marked on
+    the y=1 line (up-triangle=force-call, down-triangle=MD) and tabulated in a
+    compact side box so the two per model never overlap as free text."""
+    fig, ax = plt.subplots(figsize=(8.5, 5))
+    drawn = 0
+    xover: dict[str, dict[str, float]] = {}
+    for (model, device, mode), cells in sorted(series.items()):
+        if device != "cuda" or mode not in ("force_call", "md"):
+            continue
+        rc = _ratio_curve(cells)
+        if rc is None:
+            continue
+        common, ratio = rc
+        ls = "-" if mode == "force_call" else "--"
+        ax.plot(common, ratio, lw=1.5, ms=4, marker=_model_marker(model),
+                color=colors[model], linestyle=ls, alpha=0.9)
+        cross = _crossings(common, ratio)
+        if cross:
+            xc = cross[0]
+            xover.setdefault(model, {})[mode] = xc
+            # triangle on the break-even line, pointing per mode
+            ax.plot([xc], [1.0], marker="^" if mode == "force_call" else "v",
+                    ms=9, color=colors[model],
+                    markeredgecolor="w", markeredgewidth=0.6, zorder=5)
+            drawn += 1
+    if not drawn:
+        raise FileNotFoundError("matched e3nn/float32 + cueq/float32 records "
+                                "in results/raw/sweep*.jsonl")
+
+    ax.axhline(1.0, color="0.4", ls="-", lw=1.1)
+    ax.set_xscale("log")
+    ax.set_xlabel("atoms")
+    ax.set_ylabel("per-step speedup (cuEq / e3nn, >1 = cuEq faster)")
+    ax.set_title("Force-call crossover (solid) vs MD crossover (dashed):\n"
+                 "kernel speedup usually leads wall-clock; medium is the "
+                 "exception")
+
+    # compact crossover table (atoms), one row per model
+    lines = ["break-even (atoms)", "model      fc     MD"]
+    for m in sorted(xover, key=lambda mm: xover[mm].get("md", 1e9)):
+        fc = xover[m].get("force_call")
+        md = xover[m].get("md")
+        lines.append(f"{m:<12s}{'' if fc is None else f'{fc:>4.0f}'}"
+                     f"  {'' if md is None else f'{md:>4.0f}'}")
+    ax.text(0.985, 0.44, "\n".join(lines), transform=ax.transAxes,
+            ha="right", va="top", fontsize=7.5, family="monospace",
+            bbox=dict(boxstyle="round", fc="w", ec="0.7", alpha=0.95))
+
+    # model legend by color, mode legend by line style + triangle
+    model_handles = [Line2D([], [], color=colors[m], marker=_model_marker(m),
+                            lw=1.5, label=m) for m in models]
+    mode_handles = [
+        Line2D([], [], color="0.3", ls="-", marker="^", lw=1.5,
+               label="force-call (kernel)"),
+        Line2D([], [], color="0.3", ls="--", marker="v", lw=1.5,
+               label="MD (wall-clock)")]
+    leg1 = ax.legend(handles=model_handles, loc="upper left", title="model",
+                     fontsize=7.5)
+    ax.add_artist(leg1)
+    ax.legend(handles=mode_handles, loc="lower right", title="mode",
+              fontsize=7.5)
+    return [_save(fig, "breakeven_modes.png", "sweep*.jsonl")]
 
 
 # --------------------------------------------------------------------------- #
@@ -335,8 +479,11 @@ def fig_vram() -> list[Path]:
         cell = f"{backend}/{dtype}"
         x = [r["natoms"] for r in ok]
         y = [r["peak_vram_mib"] for r in ok]
+        # backend split by line style (cuEq solid / e3nn dashed) on top of hue,
+        # so the two families separate under color-vision deficiency
         ax.plot(x, y, lw=1.3, ms=4, color=_cell_color(cell),
-                marker=_model_marker(model), label=f"{cell} {model} ({mode})")
+                marker=_model_marker(model), linestyle=_cell_linestyle(cell),
+                label=f"{cell} {model} ({mode})")
         if any(r.get("error") == "oom" for r in sel):
             ax.plot([x[-1]], [y[-1]], "x", ms=11, mew=2.2,
                     color=_cell_color(cell))
@@ -345,15 +492,17 @@ def fig_vram() -> list[Path]:
         raise FileNotFoundError("records with peak_vram_mib in "
                                 "results/raw/sweep*.jsonl")
 
-    ax.axhline(VRAM_LIMIT_MIB, color="#D55E00", ls="--", lw=1.4)
+    # neutral gray ceiling: vermillion now means the e3nn backend, so the OOM
+    # limit must not reuse that hue
+    ax.axhline(VRAM_LIMIT_MIB, color="0.25", ls="--", lw=1.4)
     ax.text(0.01, VRAM_LIMIT_MIB, " 12 GiB (RTX 3080 Ti)", va="bottom",
-            fontsize=7.5, color="#D55E00", transform=ax.get_yaxis_transform())
+            fontsize=7.5, color="0.25", transform=ax.get_yaxis_transform())
     ax.set_xscale("log")
     ax.set_xlabel("atoms")
     ax.set_ylabel("peak VRAM (MiB, torch allocator)")
     ax.set_title("Size your production cell below the OOM boundary - cuEq's "
                  "memory saving extends it")
-    ax.legend()
+    ax.legend(ncol=2, fontsize=7)  # 2 columns keeps the 9-entry legend off data
     out = [_save(fig, "vram_oom.png", "sweep*.jsonl")]
 
     # OOM boundary: one row per full config including mode, printed + CSV
@@ -865,7 +1014,8 @@ class FigSpec:
 
 SPECS = [
     FigSpec("fig1", ("throughput_vs_size.png",), fig_throughput),
-    FigSpec("fig2", ("speedup_breakeven.png",), fig_breakeven),
+    FigSpec("fig2", ("speedup_breakeven.png", "breakeven_modes.png"),
+            fig_breakeven),
     FigSpec("fig3", ("vram_oom.png",), fig_vram),
     FigSpec("fig4", ("parity_gates.png",), fig_parity),
     FigSpec("fig5", ("phonon_dispersion.png",), fig_phonon_dispersion),

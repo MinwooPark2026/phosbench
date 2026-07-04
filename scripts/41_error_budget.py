@@ -74,6 +74,7 @@ def main() -> int:
         ("backend cost  |cuEq$-$e3nn|", [bars[k][1] for k in labels], "#009E73"),
         ("model error  |model$-$literature|", [bars[k][2] for k in labels], "#D55E00"),
     ]
+    ymin = 1e-3
     for i, (lab, vals, color) in enumerate(tiers):
         xs = [xi + (i - 1) * w for xi, v in zip(x, vals) if v is not None]
         vs = [v for v in vals if v is not None]
@@ -81,8 +82,17 @@ def main() -> int:
         for rect, v in zip(b, vs):
             ax.annotate(f"{v:.3g}%", (rect.get_x() + rect.get_width() / 2, v),
                         ha="center", va="bottom", fontsize=8)
+        # where a tier has no measured value (lattice a: precision/backend spread
+        # on the relaxed geometry was not separately measured), drop an explicit
+        # "n/a" marker at the axis floor so the empty slot does not read as
+        # missing/dropped data.
+        for xi, v in zip(x, vals):
+            if v is None:
+                ax.annotate("n/a", (xi + (i - 1) * w, ymin * 1.6), ha="center",
+                            va="bottom", fontsize=8, color="0.45", rotation=90,
+                            fontstyle="italic", annotation_clip=False)
     ax.set_yscale("log")
-    ax.set_ylim(1e-3, 200)
+    ax.set_ylim(ymin, 200)
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
     ax.set_ylabel("relative error (% of literature scale)")
@@ -90,11 +100,17 @@ def main() -> int:
                  "precision/backend errors sit 1-3 orders below model error")
     ax.legend()
     ax.grid(axis="y", alpha=0.3)
-    fig.text(0.99, 0.01, "source: elastic_corrected.json, phonons_summary.json,"
-             " model_choice.json", ha="right", fontsize=7, color="gray")
-    fig.tight_layout()
+    ax.annotate("n/a: precision/backend spread on the relaxed lattice constant "
+                "was not separately measured", (0.5, -0.14),
+                xycoords="axes fraction", ha="center", va="top", fontsize=7,
+                color="0.4")
+    # source watermark in a reserved bottom strip, outside the axes
+    fig.text(0.006, 0.008, "source: elastic_corrected.json, "
+             "phonons_summary.json, model_choice.json", ha="left", va="bottom",
+             fontsize=6.5, color="0.55")
+    fig.tight_layout(rect=(0.0, 0.035, 1.0, 1.0))
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(OUT, dpi=150)
+    fig.savefig(OUT, dpi=200)
     print(f"[41_error_budget] wrote {OUT}")
     return 0
 

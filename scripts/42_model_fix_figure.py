@@ -71,11 +71,12 @@ def main() -> int:
                  "GAP-20 fine-tuning)")
     ax.legend()
     ax.grid(axis="y", alpha=0.3)
-    fig.text(0.99, 0.01, "source: model_choice.json, elastic_corrected.json, "
+    # source watermark in a reserved bottom strip, outside the axes
+    fig.text(0.006, 0.008, "source: model_choice.json, elastic_corrected.json, "
              "phonons_summary.json, ft_validation.json",
-             ha="right", fontsize=7, color="gray")
-    fig.tight_layout()
-    fig.savefig(OUT, dpi=150)
+             ha="left", va="bottom", fontsize=6.5, color="0.55")
+    fig.tight_layout(rect=(0.0, 0.035, 1.0, 1.0))
+    fig.savefig(OUT, dpi=200)
     print(f"[42_model_fix] wrote {OUT}")
     return 0
 
