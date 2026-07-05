@@ -120,3 +120,23 @@ of *T* ns costs *T* / (ns/day) GPU-days). Nothing is extrapolated.
   expensive than any row above, by many orders of magnitude in core-hours; the
   point of MLIP deployment is that these GPU-day campaigns exist *at all* where
   AIMD would be infeasible. No specific DFT timing is claimed.
+
+---
+
+## Addendum (Part 2, 2026-07-06) — the host-gap fix, measured
+
+Section 2's item 3 recommended "batching/CUDA-graph approaches" for the
+host-bound regime. We ran that recommendation. Capturing the MACE force
+evaluation into a CUDA graph (fixed topology, numerically exact — parity
+max |ΔF| ≤ 8×10⁻⁷ eV/Å):
+
+- ≤ ~512 atoms: **×4–9 per-step speedup** — and the §4 "below break-even, cuEq
+  off" row becomes an *eager-only* rule: with graph capture the crossover
+  disappears and cuEq wins at every size (×7.1 over e3nn+graph at 140 atoms).
+- Many small cells (screening/ensembles): pack N cells into one captured graph
+  — 8×140 atoms ran at **1.04 ms/cell** (×2.1 vs eager).
+- ≥ ~3,000 atoms: kernels dominate; a graph adds ≈×1.1 — not worth the wiring.
+- Caveat: per-step ceiling at frozen topology. Production MD needs padded
+  capture (`mace.tools` padding utilities) or periodic recapture; budget that
+  engineering before quoting end-to-end numbers. Full data:
+  [cudagraph-study.md](cudagraph-study.md).

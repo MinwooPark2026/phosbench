@@ -43,6 +43,7 @@ For a lab running MACE-class potentials on a 12 GB RTX workstation:
 | system size | backend & precision | why (measured) |
 |---|---|---|
 | below break-even (~313–346 at. large, ~373–454 medium, ~947–982 small) | e3nn / fp32 (cuEq off) | step time is host-bound (GPU kernels ≤ 8% of step); cuEq kernels make it *slower* (×0.74–0.96 for the MP-0 family, down to ×0.40 for OMAT-medium at 64 atoms) |
+| *any size, if you wire CUDA-graph capture* | **cuEq / fp32 + CUDA graph** (fixed-topology or padded) | the row above is an eager-dispatch artifact: graph capture removes the launch overhead and the crossover disappears — ×4–9 per-step below ~512 atoms, numerically exact ([Part 2](#part-2--closing-the-host-gap-cuda-graphs)) |
 | break-even – ~3,000 atoms | **cuEq / fp32** | ×1.4 (small model) to ×5.0 (large model) per-step speedup at 2,944 atoms |
 | ~3,000 – 23,000 atoms | **cuEq / fp32** (above 5,760 atoms, the only option) | e3nn OOMs at 2,944 (medium/large) – 5,760 (small) atoms; cuEq's ×3.4–6.1 smaller activation memory reaches 11,520 (medium) – 23,040 (small) atoms |
 | any size, fp64 | don't — use e3nn/fp64 *sparingly* for reference data | fp64 costs ×3.2 (64 at.) to ×10 (1,408 at.) on GA102; last working rung 1,408 atoms (OOM at 2,944) |
@@ -99,7 +100,8 @@ is premature**; wait for the MD line. Medium is the measured exception
    *costs* up to 26 % (and 60 % for OMAT-medium at 64 atoms). The crossover
    positions carry roughly ±1 ladder-rung uncertainty from the unlocked
    consumer boost clocks (SM clock/temp logged per data point; medians of
-   per-step laps reported).
+   per-step laps reported). Part 2 (below) shows this crossover is a
+   *launch-overhead artifact* — it disappears under CUDA-graph capture.
 2. **cuEquivariance's bigger gift on 12 GB is memory, not speed.** At 2,944
    atoms (medium model) cuEq peaks at 1.4 GiB where e3nn needs 7.4 GiB
    (×5.3; ×3.4–6.1 across models); the reachable system size grows ×3.9
@@ -113,6 +115,8 @@ is premature**; wait for the MD line. Medium is the measured exception
    were permission-blocked). cuEq shifts the limiter from kernels to the
    Python/ASE loop: the production path beyond this study is LAMMPS ML-IAP
    (Kokkos) or CUDA-graph-style batching, per NVIDIA's datacenter results.
+   Part 2 (below) runs the CUDA-graph half of that sentence: ×9.1 → ×1.12
+   (140 → 2,944 atoms) — the decay curve this finding predicts.
 4. **fp64 is effectively unavailable on consumer Ampere.** ×3.2–×10 measured
    cost (the fp64 GEMMs dominate the timeline: the three largest
    `cutlass...d884gemm` kernels take ~74 % of kernel time, and all `d884gemm`
@@ -304,6 +308,53 @@ breakdown, so this reading transfers directly; only the absolute Pair cost (a
 neural potential is far heavier than LJ) and thus the comm-vs-compute crossover
 rank change.
 
+## Part 2 — closing the host gap: CUDA Graphs
+
+*Added 2026-07-06, after the frozen Part 1 campaign. Full study with methods
+and per-arm data: [docs/cudagraph-study.md](docs/cudagraph-study.md);
+code: `scripts/70–73`.*
+
+Finding 3 named the fix but did not run it. Part 2 captures the MACE force
+evaluation into a CUDA graph — fixed-topology path through the calculator's own
+converter, static I/O buffers, hand capture with `torch.cuda.graph` (no
+`torch.compile`; cuEq #77) — and measures what comes back. **Parity gate before
+any timing**: graph-replay forces match eager to max |ΔF| ≤ 8×10⁻⁷ eV/Å
+(fp32 roundoff) at every size.
+
+| atoms | eager (ms/step) | graph (ms/step) | speedup | peak VRAM eager → graph |
+|------:|---:|---:|---:|---:|
+| 140   | 17.14 | **1.88**  | **×9.1** | 103 → 67 MiB |
+| 512   | 17.23 | **4.18**  | **×4.1** | 327 → 103 MiB |
+| 2,944 | 23.26 | 20.85     | ×1.12    | 1,487 → 143 MiB |
+
+![cudagraph speedup](results/figures/cudagraph_speedup.png)
+*The decay curve is finding 3 validated by intervention: at 140 atoms the step
+was ~94 % host launch overhead — a graph collapses it; at 2,944 atoms kernels
+already fill the step, so there is nothing left for a graph to reclaim.*
+
+**The headline consequence: finding 1's break-even collapses at the force-eval
+level.** Side by side, cuEq + graph beats e3nn + graph at *every* size — ×7.1
+at 140 atoms (1.88 vs 13.30 ms), the very size where eager cuEq loses; at
+2,944 atoms e3nn cannot even capture (OOM: graph pool + e3nn's 7.4 GiB working
+set exceeds 12 GB) where cuEq + graph fits easily. The eager crossover was
+never about kernel work — cuEq's many tiny kernels simply pay more launch
+dispatch than e3nn's few heavy ones. Remove the dispatch and cuEq wins
+everywhere; hence the matrix's second row.
+
+**Batch the below-break-even regime**: 8 replicas of the 140-atom cell packed
+into *one* captured graph run at **1.04 ms/cell** — ×2.1 vs eager, ×1.7 vs
+replaying a single-cell graph 8 times (parity 5.8×10⁻⁷ eV/Å). For ensembles of
+small independent cells, don't just capture — batch the capture.
+
+**Honest boundary**: all of this is the *per-step ceiling* at frozen topology —
+the regime between neighbour-list rebuilds. Production MD needs periodic
+recapture or padded capture (MACE ships `padding_tools`) and end-to-end numbers
+including that cost; this section must not be cited as an end-to-end MD
+speedup. An unexpected free observation: in a bare force-eval loop,
+free-running ≈ synced eager (unlike the MD loop's 31 vs 78 ms/step) — without
+integrator Python between calls there is nothing to pipeline, isolating
+per-call dispatch as the cost only a graph removes.
+
 ## Where this goes next
 
 - **Datacenter column**: the sweep harness is config-driven and re-runs
@@ -321,3 +372,7 @@ rank change.
   `scripts/53_finetune_swa.sh`, `scripts/55_ft_validation.py`). The benchmark
   numbers needed no re-run: they are model-fidelity-independent by
   construction.
+- **Host gap, CUDA-graph half**: done — see Part 2 (`scripts/70–73`,
+  [docs/cudagraph-study.md](docs/cudagraph-study.md)). The remaining honest
+  step on this branch is padded capture wired into a real MD driver,
+  measured end-to-end including recapture cost.
