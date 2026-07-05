@@ -145,9 +145,18 @@ main study's break-even actually was:
 
 | atoms | e3nn eager | e3nn + graph | cuEq eager | **cuEq + graph** | graph-era winner |
 |------:|-----------:|-------------:|-----------:|-----------------:|------------------|
+| 64    | 18.71      | 6.69         | 17.12      | **1.45**         | cuEq + graph, 4.6× apart |
 | 140   | **15.35** *(eager-era winner)* | 13.30 | 17.14 | **1.88** | cuEq + graph, **7.1×** apart |
-| 512   | 47.39      | 45.84        | 17.23      | **4.18**         | cuEq + graph, 11× apart |
+| 512   | 47.39      | 45.84        | 17.23      | **4.18**         | cuEq + graph, 11.0× apart |
+| 1,408 | 125.0      | 123.5        | 17.19      | **10.41**        | cuEq + graph, 11.9× apart |
 | 2,944 | 260.18     | OOM (capture)| 23.26      | **20.85**        | cuEq + graph |
+
+*(64- and 1,408-atom rows from the extended ladder, `bench_*_fp32_extra.json`;
+note cuEq eager sits on the same ~17 ms launch floor from 64 through 1,408
+atoms.)*
+
+![break-even transformation](../results/figures/breakeven_graphera.png)
+*The decision chart before/after (`scripts/74_breakeven_graphera.py`).*
 
 Finding 1 located a model-dependent crossover (~313–982 atoms) below which
 enabling cuEquivariance made the step *slower*. This table shows that crossover

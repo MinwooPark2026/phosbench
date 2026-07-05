@@ -341,6 +341,13 @@ never about kernel work — cuEq's many tiny kernels simply pay more launch
 dispatch than e3nn's few heavy ones. Remove the dispatch and cuEq wins
 everywhere; hence the matrix's second row.
 
+![break-even transformation](results/figures/breakeven_graphera.png)
+*The same decision chart before and after: under eager dispatch the cuEq
+advantage dips below 1 (finding 1's break-even, as seen by this harness);
+under graph capture it never crosses — ×4.6–11.9 across 64–1,408 atoms.
+Left panel: cuEq eager sits on a flat ~17 ms launch-overhead floor all the
+way through 1,408 atoms; the graph removes that floor.*
+
 **Batch the below-break-even regime**: 8 replicas of the 140-atom cell packed
 into *one* captured graph run at **1.04 ms/cell** — ×2.1 vs eager, ×1.7 vs
 replaying a single-cell graph 8 times (parity 5.8×10⁻⁷ eV/Å). For ensembles of
