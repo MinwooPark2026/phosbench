@@ -1,11 +1,11 @@
 # phosbench — Measurement Protocol (frozen 2026-06-10)
 
-**Production MLIP MD on consumer GPUs — a deployment case
+**Production MLIP MD on consumer GPUs: a deployment case
 study on black phosphorus.**
 
 Single material (monolayer phosphorene + bulk-BP Γ modes as context), full depth.
 Every figure answers a deployment decision, not a curiosity. Target hardware is a
-workstation RTX 3080 Ti (GA102, SM86, 12 GB) — deliberately: this is the consumer
+workstation RTX 3080 Ti (GA102, SM86, 12 GB), deliberately: this is the consumer
 GPU most researchers actually run on. Published A100/H100 numbers are imported as the
 "datacenter column" with explicit caveats.
 
@@ -29,7 +29,7 @@ GPU most researchers actually run on. Published A100/H100 numbers are imported a
 cueq/float64 is documented broken upstream (MACE #1203, #1298; cuEq changelog
 removed fp32-math/fp64-IO). Stage A probes it expecting failure or silent
 fallback; the outcome is itself a deployment finding ("the supported production
-path is cueq-fp32"). GA102 runs fp64 at 1:64 of fp32 — consumer deployment
+path is cueq-fp32"). GA102 runs fp64 at 1:64 of fp32, so consumer deployment
 *forces* the fp32 question; that asymmetry (A100 = 1:2) is the story's engine.
 
 Known-issues guardrails: single-head models only (#1298), no torch.compile
@@ -40,7 +40,7 @@ ops-torch-cu12 / e3nn (env) / torch 2.11.0+cu128 (verified working on this box).
 
 1. **Kernel-truth check**: 10-step nsys trace with `enable_cueq=True` →
    cuEquivariance kernel names visibly on the GPU timeline (rules out silent
-   e3nn fallback on SM86; SM86 is not a tuned cuEq target — disclose in captions).
+   e3nn fallback on SM86; SM86 is not a tuned cuEq target, disclose in captions).
 2. **Parity gate (hard stop)**: cueq/fp32 vs e3nn/fp32, MACE medium, 140-atom
    phosphorene supercell: |ΔE| < 1 meV/atom AND max|ΔF| < 1 meV/Å.
 3. **fp64 path**: e3nn/fp64 runs end-to-end (verify parameter dtypes really are
@@ -56,7 +56,7 @@ ops-torch-cu12 / e3nn (env) / torch 2.11.0+cu128 (verified working on this box).
 5. **Profiling gate**: nsys works rootless (CUDA + NVTX + osrt traces); note
    whether ncu hardware counters need NVreg flag (don't block on it).
 6. **VRAM bisect**: max atoms before OOM, medium model, e3nn vs cueq @ fp32
-   (log-scale bisect) — sizes the sweep ladder; cueq's memory saving extends
+   (log-scale bisect): sizes the sweep ladder; cueq's memory saving extends
    the boundary (report as data).
 
 ## Stage B — throughput sweep (≤ ~40 runs)
@@ -66,8 +66,8 @@ ops-torch-cu12 / e3nn (env) / torch 2.11.0+cu128 (verified working on this box).
   PLUS CPU (Ryzen 5800X, e3nn/fp32, sizes ≤ ~2k atoms) for the GPU-vs-CPU
   break-even.
 - Two timing modes per config (this separation is a headline deliverable):
-  - `force_call`: bare calculator on rattled copies — kernel-level speedup;
-  - `md`: real VelocityVerlet loop — end-to-end ns/day with ASE host overhead.
+  - `force_call`: bare calculator on rattled copies, kernel-level speedup;
+  - `md`: real VelocityVerlet loop, end-to-end ns/day with ASE host overhead.
   "Kernel crossover" ≠ "wall-clock crossover"; publish both maps.
 - Methodology: subprocess isolation per config (OOM cannot poison later runs),
   warmup ≥ 10 steps (JIT/autotune amortized; first-call latency recorded
@@ -83,14 +83,14 @@ ops-torch-cu12 / e3nn (env) / torch 2.11.0+cu128 (verified working on this box).
   proxy from timeline. NVTX ranges instrumented in phosbench.common.
 - ncu deep-dive on the single dominant kernel ONLY if perf-counter permission is
   painless; otherwise skip (documented).
-- Output: stacked time-share bars vs system size — the "where did the time go"
+- Output: stacked time-share bars vs system size: the "where did the time go"
   figure that explains WHY break-even sits where it sits.
 
 ## Stage D — physical accuracy (three-tier error budget)
 
 Tier definitions per observable: T1 = |fp32 − fp64| (same model, e3nn);
 T1' = |cueq-fp32 − e3nn-fp32| (backend); T2 = |model(fp64) − DFT literature|;
-T3 = |DFT − experiment|. Claim format: "T1 is X% of T2" — precision is (or is
+T3 = |DFT − experiment|. Claim format: "T1 is X% of T2". Precision is (or is
 not) the error worth paying to reduce.
 
 1. **Phonon dispersion** (phonopy, finite displacement, 4×6×1 supercell of the
@@ -113,10 +113,10 @@ not) the error worth paying to reduce.
 
 ## Stage E — deliverables
 
-1. `README.md` — case study with decision-captioned figures (each caption states
+1. `README.md`: case study with decision-captioned figures (each caption states
    the deployment decision it informs, e.g. "below ~N atoms stay on e3nn —
    host overhead dominates").
-2. `docs/engagement-memo.md` — 1-2 page mock SA engagement memo addressed to "a
+2. `docs/engagement-memo.md`: 1-2 page mock SA engagement memo addressed to "a
    materials group running MACE on consumer GPUs": workload characterization table (data
    types, IO, CPU↔GPU split), bottleneck quantification, recommendation matrix
    (model × precision × backend × system size) incl. datacenter column from

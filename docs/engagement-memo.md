@@ -12,11 +12,11 @@ cuEquivariance 0.10.0 (full data: this repo)
 
 | dimension | finding |
 |---|---|
-| kernel profile (e3nn baseline) | at 2,944 atoms GPU kernels occupy 60 % of each MD step's wall-time (kernel share = summed kernel durations / NVTX force_eval span on the nsys timeline — a wall-time ratio, *not* SM occupancy; hardware counters were permission-blocked); kernel time is spread across elementwise tensor ops and SGEMMs, with index-backward (gather/scatter) 6th at 6.5 % — on the cuEq build that same gather/scatter rises to the top (30.7 %) because the tensor-product kernels shrink |
+| kernel profile (e3nn baseline) | at 2,944 atoms GPU kernels occupy 60 % of each MD step's wall-time (kernel share = summed kernel durations / NVTX force_eval span on the nsys timeline — a wall-time ratio, *not* SM occupancy; hardware counters were permission-blocked); kernel time is spread across elementwise tensor ops and SGEMMs, with index-backward (gather/scatter) 6th at 6.5 %. On the cuEq build that same gather/scatter rises to the top (30.7 %) because the tensor-product kernels shrink |
 | precision | model weights/activations fp32 by default; fp64 runs at 1/64 FLOP rate on GA102 → measured ×3.2–×10 step-time penalty and ×2 memory; fp64 is for reference data only on this hardware |
 | CPU↔GPU traffic | negligible (< 0.25 % of step time): positions down / forces up per step; this workload is **not** transfer-bound on a workstation |
 | host vs device | the real split: at 140 atoms, 92 % (e3nn/fp32) to 99 % (cuEq) of step time is host-side Python/ASE/launch overhead — the GPU idles; fp64 is the exception (50 % host, because its kernels are so slow) |
-| MPI share | Measured, methodology demo (classical LJ, not MACE): strong-scaling a fixed 500k-atom LJ melt on 1→8 CPU cores, Comm rises 0.7 %→9.0 % of loop time while Pair falls 84.6 %→70.1 % (wall 135 s→25 s, 5.4×). This is how you locate the rank count where the comm tax overtakes the marginal pair-time win — the number to fix before any multi-node/GPU commitment. Same LAMMPS Pair/Comm breakdown applies to MACE via LAMMPS ML-IAP (pair_style mace). See results/figures/mpi_comm_share.png |
+| MPI share | Measured, methodology demo (classical LJ, not MACE): strong-scaling a fixed 500k-atom LJ melt on 1→8 CPU cores, Comm rises 0.7 %→9.0 % of loop time while Pair falls 84.6 %→70.1 % (wall 135 s→25 s, 5.4×). This is how you locate the rank count where the comm tax overtakes the marginal pair-time win: the number to fix before any multi-node/GPU commitment. Same LAMMPS Pair/Comm breakdown applies to MACE via LAMMPS ML-IAP (pair_style mace). See results/figures/mpi_comm_share.png |
 | memory scaling | activation memory grows steeply with neighbors; e3nn/medium OOMs at ~3k atoms on 12 GB |
 | IO / data types | extxyz trajectories, float32 tensors; checkpoint-restart cost negligible vs step time |
 
@@ -39,16 +39,16 @@ cuEquivariance 0.10.0 (full data: this repo)
 
 Run these once per material (scripts in this repo; minutes of GPU time):
 
-- **Backend parity**: cuEq vs e3nn at fp32 — here ΔE below fp32
+- **Backend parity**: cuEq vs e3nn at fp32. Here ΔE below fp32
   representation resolution (bitwise-identical fp32 energies), max |ΔF| =
   5×10⁻⁴ meV/Å. Verify cuEq kernels actually run (Nsight;
-  `segmented_polynomial_*`) — we caught a parser blind spot this way.
+  `segmented_polynomial_*`). We caught a parser blind spot this way.
 - **Observable-level precision check**: phonons, elastic constants, NVE drift
   vs an e3nn/fp64 reference. Here fp32 errors are ≤ 3 % (typically ≤ 1 %) of
   the model-vs-DFT error on every observable, and NVE drift is
   ≤ 0.012 µeV/atom/ps in every cell → fp32 production MD is safe *for this
   system*. One hard exclusion: do **not** run barostatted (NPT) MD on
-  partially periodic systems with mace-torch 0.3.16 — the slab-stress bug
+  partially periodic systems with mace-torch 0.3.16: the slab-stress bug
   (§5) inflates the cell ~20 % in 50 ps regardless of precision/backend.
 - **Protocol caveat**: fp32 force noise corrupts finite-difference property
   workflows at small displacements (spurious imaginary acoustic points at
@@ -60,7 +60,7 @@ Run these once per material (scripts in this repo; minutes of GPU time):
   foundation models compress phosphorene's soft armchair axis by 7–10 %.
   Zero-shot ≠ production-ready: validate the soft direction of *your*
   material. If it fails, budget ~one workstation-GPU-day for an
-  energy-weighted fine-tune (measured training wall-time here: ~2 h) —
+  energy-weighted fine-tune (measured training wall-time here: ~2 h),
   demonstrated here on the open GAP-20 dataset,
   bringing every observable within ~5 % of DFT (and note the trap we hit
   first: a forces-weighted fine-tune leaves the lattice broken; the soft
@@ -72,7 +72,7 @@ Run these once per material (scripts in this repo; minutes of GPU time):
 |---|---|---|
 | screening, below break-even (~0.4k–1k at.) | e3nn/fp32 on the workstation GPU (never CPU: GPU wins ×13 even at 64 atoms) | 2.0 ns/day @ 64 at. |
 | production MD, break-even–11k atoms | cuEq/fp32 on the workstation | 1.3 ns/day @ 1.4k at., 0.57 @ 2.9k, 0.25 @ 11.5k |
-| > 11k atoms, multi-ns trajectories, or multi-GPU | datacenter / LAMMPS-Kokkos path; A100 fp64 at 1:2 also reopens fp64 if you need it | above ~5k atoms this card is for relaxations and snapshots, not multi-ns MD — that is the datacenter handoff point |
+| > 11k atoms, multi-ns trajectories, or multi-GPU | datacenter / LAMMPS-Kokkos path; A100 fp64 at 1:2 also reopens fp64 if you need it | above ~5k atoms this card is for relaxations and snapshots, not multi-ns MD: that is the datacenter handoff point |
 | phonons / elastic / stability verdicts | hybrid: e3nn/fp64 displaced forces, cuEq/fp32 dynamics | phonon set: minutes |
 | geometry relaxation reference | e3nn/fp64, small cells only (last working rung 1.4k atoms; OOM at 2.9k) | — |
 
@@ -101,7 +101,7 @@ of *T* ns costs *T* / (ns/day) GPU-days). Nothing is extrapolated.
 - **The one-time model-fix tax is small and already paid.** Repairing the
   soft-axis failure cost ~2 h of measured training wall-time on this same card
   (both fine-tune stages; budget ~1 GPU-day end-to-end with data prep and
-  validation iterations). Amortized over any real MD campaign it is noise —
+  validation iterations). Amortized over any real MD campaign it is noise:
   validate and fine-tune once per material, then run.
 - **Stay on the RTX** for screening and for single trajectories up to a few ns
   below ~3k atoms: a 5 ns run there is a long weekend, not a cluster request.
@@ -129,12 +129,12 @@ host-bound regime. We ran that recommendation. Capturing the MACE force
 evaluation into a CUDA graph (fixed topology, numerically exact — parity
 max |ΔF| ≤ 8×10⁻⁷ eV/Å):
 
-- ≤ ~512 atoms: **×4–9 per-step speedup** — and the §4 "below break-even, cuEq
+- ≤ ~512 atoms: **×4–9 per-step speedup**, and the §4 "below break-even, cuEq
   off" row becomes an *eager-only* rule: with graph capture the crossover
   disappears and cuEq wins at every size (×7.1 over e3nn+graph at 140 atoms).
-- Many small cells (screening/ensembles): pack N cells into one captured graph
-  — 8×140 atoms ran at **1.04 ms/cell** (×2.1 vs eager).
-- ≥ ~3,000 atoms: kernels dominate; a graph adds ≈×1.1 — not worth the wiring.
+- Many small cells (screening/ensembles): pack N cells into one captured graph:
+  8×140 atoms ran at **1.04 ms/cell** (×2.1 vs eager).
+- ≥ ~3,000 atoms: kernels dominate; a graph adds ≈×1.1, not worth the wiring.
 - Caveat: per-step ceiling at frozen topology. Production MD needs padded
   capture (`mace.tools` padding utilities) or periodic recapture; budget that
   engineering before quoting end-to-end numbers. Full data:

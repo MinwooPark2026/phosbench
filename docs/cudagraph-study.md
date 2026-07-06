@@ -8,7 +8,7 @@ torch 2.11.0+cu128, cuEquivariance 0.10.0, mace_mp medium (MP-0), fp32.*
 ## The claim under test
 
 Finding 3 of the main study showed that **after** cuEquivariance, the GPU kernels
-occupy only ~10 % of the MD step at 2,944 atoms — the Python/ASE loop and per-step
+occupy only ~10 % of the MD step at 2,944 atoms; the Python/ASE loop and per-step
 kernel-launch latency dominate. The finding named the fix but did not run it:
 "the production path beyond this study is LAMMPS ML-IAP (Kokkos) or
 **CUDA-graph-style batching**." Part 2 runs the CUDA-graph half of that sentence
@@ -16,7 +16,7 @@ and measures what comes back.
 
 A CUDA graph records a whole stream of kernel launches once and replays them as a
 single host call, eliminating the per-launch CPU dispatch cost. If finding 3 is
-right — if the small-system MACE step really is launch-latency-bound — then a
+right (if the small-system MACE step really is launch-latency-bound) then a
 graph should give a large speedup at small sizes that decays to nothing as the
 system grows and real kernel work takes over. That decay curve is the prediction;
 the numbers below are the test.
@@ -69,21 +69,21 @@ This is exactly the decay curve finding 3 predicted, and it validates finding 3
 rather than overturning it:
 
 - **At 140 atoms the force eval is ~94 % host overhead.** Eager sits at a flat
-  ~17 ms/step floor that is *independent of system size* from 140 to 512 atoms —
+  ~17 ms/step floor that is *independent of system size* from 140 to 512 atoms:
   that floor is the Python + kernel-launch dispatch cost, not GPU work. The graph
   collapses it to **1.88 ms** with zero jitter (p10 = p90 = 1.88), because the whole
   step is now one deterministic replay. **9.1× faster.**
 - **At 512 atoms** the graph still wins **4.1×** (17.2 → 4.2 ms): real kernel work is
   starting to fill the step but launch overhead is still most of it.
 - **At 2,944 atoms** the graph gives only **1.12×** (23.3 → 20.9 ms). Here the
-  kernels genuinely occupy most of the step — precisely the ~10 % host share
+  kernels genuinely occupy most of the step, precisely the ~10 % host share
   finding 3 measured by Nsight. There is little launch overhead left to reclaim, so
   a graph can't manufacture speed the hardware isn't leaving on the table.
 
 **Bonus:** the graph is also *leaner*. Peak allocator VRAM drops from 103 → 67 MiB
 (140), 327 → 103 MiB (512), and 1,487 → 143 MiB (2,944) because the private pool
 reuses autograd's transient buffers instead of re-allocating them every step. For
-cuEq — whose activation footprint is already small (finding 2) — the graph is both
+cuEq, whose activation footprint is already small (finding 2), the graph is both
 faster and smaller.
 
 ## An honest surprise: free-running ≈ synced *here*
@@ -109,7 +109,7 @@ For the reference e3nn backend at fp32 the graph gives 1.15× (140), 1.03× (512
 and **fails to capture at 2,944 with a CUDA OOM**: the graph's private memory pool
 on top of e3nn's ~7.4 GiB working set (finding 2) exceeds the 12 GB card. e3nn's
 heavier kernels mean the step was never launch-bound, so there was little to
-reclaim — and the memory headroom the graph needs is exactly the headroom e3nn
+reclaim, and the memory headroom the graph needs is exactly the headroom e3nn
 doesn't have. cuEq's lean footprint is what lets cuEq + graph fit where e3nn + graph
 cannot. This reinforces finding 2 (cuEq's bigger gift on 12 GB is memory) from a
 new direction.
@@ -118,8 +118,8 @@ new direction.
 
 The single-cell graph floor at 140 atoms is ~1.9 ms/step, and it is almost all the
 one host→device replay launch, not kernel work. So a workload of *many small
-independent cells* (an ensemble, replica exchange, a batch of candidate structures
-— all in the below-break-even regime the main sweep flagged) can amortise that one
+independent cells* (an ensemble, replica exchange, a batch of candidate structures,
+all in the below-break-even regime the main sweep flagged) can amortise that one
 launch by packing N cells into a single `torch_geometric.Batch` and evaluating them
 in **one** captured graph. Measured with N = 8 replicas of the 140-atom cell
 (cuEq/fp32, 1,120 atoms / 34,720 edges total):
@@ -130,7 +130,7 @@ in **one** captured graph. Measured with N = 8 replicas of the 140-atom cell
 | 8× single-cell graph replays  | 14.03 | 1.75 |
 | **one batched graph**         | **8.32** | **1.04** |
 
-Parity (batched-graph vs batched-eager forces): max\|ΔF\| = 5.8×10⁻⁷ eV/Å — the
+Parity (batched-graph vs batched-eager forces): max\|ΔF\| = 5.8×10⁻⁷ eV/Å. The
 8-way batch is numerically exact too. Batching into one graph beats replaying the
 single-cell graph 8 times by **1.7×** (1.75 → 1.04 ms/cell) and beats eager by
 **2.1×**, driving the per-cell cost down toward the actual kernel work. The lesson
@@ -166,7 +166,7 @@ one carries a host launch cost while the GPU idles, so at small sizes the launch
 bill exceeds the kernel savings. e3nn's fewer, heavier kernels hide their launch
 cost under real work. Remove the dispatch cost (capture the graph) and cuEq's
 true kernel-work advantage shows at every size measured: **7.1× faster than
-e3nn+graph at 140 atoms — the size where eager cuEq loses** — 11× at 512, and at
+e3nn+graph at 140 atoms** (the size where eager cuEq loses), 11× at 512, and at
 2,944 atoms e3nn cannot even capture (OOM) where cuEq+graph fits with ~12 GB of
 headroom to spare.
 
@@ -175,7 +175,7 @@ The deployment matrix therefore gains a second row rather than losing its first:
 - **One-flag eager deployment** (the main study's audience): finding 1 stands
   unchanged — below the crossover, leave cuEq off.
 - **Deployment willing to wire fixed-topology/padded graph capture**: the
-  crossover disappears — cuEq + graph wins at every size, and the
+  crossover disappears. cuEq + graph wins at every size, and the
   below-break-even regime should further *batch* small cells into one graph
   (previous section).
 
@@ -202,10 +202,10 @@ trajectory eventually moves atoms across cell boundaries and changes the neighbo
 count, at which point `edge_index` changes shape and the captured graph is invalid.
 
 **Production MD therefore cannot naively claim this speedup end-to-end.** A real
-deployment needs one of: (i) **periodic recapture** — rebuild the neighbour list and
-re-capture every N steps (amortised only if N is large enough that recapture cost is
-negligible, which is the standard Verlet-skin trade-off); or (ii) **padded capture**
-— over-allocate `edge_index`/`shifts` to a fixed maximum edge count with dummy edges
+deployment needs one of: (i) **periodic recapture**, rebuilding the neighbour list and
+re-capturing every N steps (amortised only if N is large enough that recapture cost is
+negligible, which is the standard Verlet-skin trade-off); or (ii) **padded capture**,
+over-allocating `edge_index`/`shifts` to a fixed maximum edge count with dummy edges
 (MACE ships `build_fake_padding_graph` / `padding_tools` for exactly this), so the
 graph's shapes survive neighbour-count fluctuations up to the pad budget, at the cost
 of computing on padding edges every step.
@@ -214,5 +214,5 @@ What this study establishes is the **per-step ceiling** a CUDA-graph MD engine c
 reach on this hardware and model, and that the capture is numerically exact. It does
 **not** establish an end-to-end MD speedup, and this section should never be cited as
 one. The next step to a production number would be wiring padded capture into an ASE
-MD driver and measuring including the recapture/padding cost — that is the honest
+MD driver and measuring including the recapture/padding cost. That is the honest
 continuation, and it is out of scope for a per-step ceiling study.

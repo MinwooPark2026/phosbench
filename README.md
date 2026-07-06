@@ -4,7 +4,7 @@
 an end-to-end deployment study on black phosphorus (RTX 3080 Ti, 12 GB).**
 
 Machine-learned interatomic potentials (MACE foundation models) promise
-DFT-quality MD at classical cost — but the headline acceleration numbers
+DFT-quality MD at classical cost, but the headline acceleration numbers
 (NVIDIA's cuEquivariance-in-LAMMPS results, NVIDIA Technical Blog, Oct 2025)
 are water benchmarks on datacenter A100/H100s, throughput-first, and the
 closest independent study (arXiv:2510.23621) is likewise water-throughput,
@@ -15,7 +15,7 @@ maximally anisotropic 2D semiconductor), what it
 takes to run **trustworthy production MD** on that hardware: when
 cuEquivariance pays off and when it does not, what fp32 does to *physical
 observables* (phonon dispersions, anisotropic elastic constants, energy
-drift — not force RMSE), and where the time actually goes (Nsight). Every
+drift, not force RMSE), and where the time actually goes (Nsight). Every
 figure caption states the deployment decision it informs.
 
 **The 2-page decision memo for a lab deciding today → [docs/engagement-memo.md](docs/engagement-memo.md).**
@@ -23,7 +23,7 @@ figure caption states the deployment decision it informs.
 > **Scope discipline**: this extends the published datacenter throughput
 > results to the consumer break-even boundaries and solid-state observables
 > that drive real lab deployment decisions. It is *not* the first consumer
-> MACE benchmark (arXiv:2510.23621 includes an RTX 2080 Ti) — it is, to our
+> MACE benchmark (arXiv:2510.23621 includes an RTX 2080 Ti). It is, to our
 > knowledge, the first break-even/OOM characterization and the first
 > precision-vs-solid-state-observable study for the MACE + cuEquivariance
 > stack.
@@ -51,13 +51,13 @@ For a lab running MACE-class potentials on a 12 GB consumer GPU:
 | CPU (8-core Ryzen 5800X) | never for this workload | GPU wins ×13 even at 64 atoms, ×64 at 1,408 |
 
 ![error budget](results/figures/error_budget.png)
-*The chart that settles the precision argument: per observable, fp32 and
+*The precision chart: per observable, fp32 and
 backend errors are 1–3 orders of magnitude below the model-vs-literature
 error.*
 
 **The error budget that matters**: across every observable we measured,
 |fp32 − fp64| and |cuEq − e3nn| are **≤ 3 % (typically ≤ 1 %)** of
-|model − DFT-literature| — worst case C22, where 0.07 N/m of precision spread
+|model − DFT-literature|. Worst case is C22, where 0.07 N/m of precision spread
 stands against 2.4 N/m of model error. Numerical precision is not the error
 you should pay to reduce — model choice is (see *Zero-shot validation
 failure*, below).
@@ -78,13 +78,13 @@ failure*, below).
 *The un-normalized view behind the speedup map: absolute MD throughput
 (ns/day) per backend/precision as system size grows; × marks the last size
 that fits in 12 GB. cuEq/fp32 owns the large-system frontier, e3nn dies early
-to OOM, and fp64 is off the bottom — this is the data the recommendation
+to OOM, and fp64 is off the bottom. This is the data the recommendation
 matrix compresses.*
 
 ![break-even modes](results/figures/breakeven_modes.png)
 *Force-call (kernel) crossover vs MD-loop (wall-clock) crossover, per model:
 the kernel speedup usually leads the wall-clock one because ASE host overhead
-delays the MD crossover — so **enabling cuEq the moment the kernels break even
+delays the MD crossover, so **enabling cuEq the moment the kernels break even
 is premature**; wait for the MD line. Medium is the measured exception
 (MD 373 vs force-call 454 atoms).*
 
@@ -111,7 +111,7 @@ is premature**; wait for the MD line. Medium is the measured exception
    GPU kernels occupy 1 % of step wall-time (cuEq) — faster kernels cannot
    help; at 2,944 atoms e3nn kernels occupy 60 % of step wall-time vs cuEq's
    10 % (kernel share = summed kernel durations / NVTX force_eval span on the
-   nsys timeline — a wall-time ratio, *not* SM occupancy; hardware counters
+   nsys timeline, a wall-time ratio, *not* SM occupancy; hardware counters
    were permission-blocked). cuEq shifts the limiter from kernels to the
    Python/ASE loop: the production path beyond this study is LAMMPS ML-IAP
    (Kokkos) or CUDA-graph-style batching, per NVIDIA's datacenter results.
@@ -144,8 +144,8 @@ is premature**; wait for the MD line. Medium is the measured exception
      31 ms/step vs the 78 ms/step the per-step-synced harness measures at this
      size — cuEq pipelines launches ahead, so the sweep's break-even numbers
      are *conservative* for production MD.
-   - NPT lattice: invalidated by the upstream stress inconsistency — see
-     finding 8; the failure itself is precision/backend-independent.
+   - NPT lattice: invalidated by the upstream stress inconsistency (see
+     finding 8); the failure itself is precision/backend-independent.
 
    <details>
    <summary><b>The three gate figures behind finding 5</b> (click to expand)</summary>
@@ -158,7 +158,7 @@ is premature**; wait for the MD line. Medium is the measured exception
 
    ![elastic anisotropy](results/figures/elastic_anisotropy.png)
    *C11/C22 are identical to 0.22 % across all three cells and reproduce the
-   ~3–4× DFT anisotropy (dashed lines: DFT C11 ≈ 24, C22 ≈ 103 N/m — reference,
+   ~3–4× DFT anisotropy (dashed lines: DFT C11 ≈ 24, C22 ≈ 103 N/m, reference,
    not a fitted target). Accept a cell for strained MD only if it keeps
    C22 ≫ C11; C12 is the one number off the broken stress path, shown for
    completeness, not trusted.*
@@ -172,7 +172,7 @@ is premature**; wait for the MD line. Medium is the measured exception
 6. **…but fp32 changes *how you must measure*.** Finite-difference phonons at
    the standard 0.01 Å displacement pick up fp32 force noise: spurious
    imaginary acoustic artifacts at −0.007 THz (e3nn) to −0.012 THz (cuEq)
-   that shrink (cuEq: −0.003 THz) or change sign (e3nn) at 0.05 Å — while
+   that shrink (cuEq: −0.003 THz) or change sign (e3nn) at 0.05 Å, while
    fp64 shows the opposite trend, clean at 0.01–0.03 Å and picking up its own
    −0.002 THz anharmonic artifacts at 0.05 Å. No verdict changes under the
    standard 0.3 THz 2D-flexural tolerance; the deployment point is that fp32
@@ -181,22 +181,22 @@ is premature**; wait for the MD line. Medium is the measured exception
 
    ![phonon noise vs displacement](results/figures/phonon_noise_vs_displacement.png)
    *fp32 finite-difference force noise falls as the displacement grows, so the
-   0.01 Å textbook default is the worst case for fp32 — keep displaced-force
+   0.01 Å textbook default is the worst case for fp32: keep displaced-force
    phonon/elastic workflows on e3nn/fp64 and production MD on cuEq/fp32.*
-7. **Zero-shot validation failure — caught, diagnosed, and fixed.**
+7. **Zero-shot validation failure, caught, diagnosed, and fixed.**
    *Caught*: all three foundation models tested (MACE-MP-0, MACE-MPA-0,
    MACE-OMAT-0) reproduce the zigzag lattice constant within 0.9–2.6 % but
    compress the soft armchair axis by **7–10 %** (4.17–4.30 Å vs 4.62 Å DFT)
    — exactly the direction whose DFT stiffness is ~4.3× lower (C11 ≈ 24 vs
    C22 ≈ 103 N/m); armchair stiffness comes out ~38 % high.
    *Diagnosed*: a first fine-tune on the open GAP-20 dataset (forces-weighted
-   loss, 40 epochs) repaired nothing — validation energy RMSE sat at
+   loss, 40 epochs) repaired nothing: validation energy RMSE sat at
    106 meV/atom; the soft-axis lattice is an energy-landscape property, so
    underfit energies leave it broken.
-   *Fixed*: an energy-weighted stage-two (SWA, E:F = 1000:100) fine-tune —
-   ≈2 h of training wall-time on this same RTX 3080 Ti (both stages, from the
+   *Fixed*: an energy-weighted stage-two (SWA, E:F = 1000:100) fine-tune
+   (≈2 h of training wall-time on this same RTX 3080 Ti, both stages, from the
    training logs; budget ~a GPU-day end-to-end with data prep and validation
-   iterations) — lands every observable within ~5 % of literature: a −2.0 %, b −0.1 %, C11 23.0 N/m (−4 %),
+   iterations) lands every observable within ~5 % of literature: a −2.0 %, b −0.1 %, C11 23.0 N/m (−4 %),
    C22 100.8 N/m (−2 %), anisotropy 4.38 (DFT 4.29), top optical mode
    463 cm⁻¹ vs 467 cm⁻¹ Raman. Precision/backend invariance persists after
    the fix (C11: e3nn-fp64 23.01 vs cuEq-fp32 22.94).
@@ -214,7 +214,7 @@ is premature**; wait for the MD line. Medium is the measured exception
    The bug also poisons NPT: the barostat balances an *unscaled* kinetic
    pressure against a ×17.8-undersized virial, so the cell inflates
    monotonically (~+20 % in-plane over 50 ps, identical across e3nn-fp64 /
-   e3nn-fp32 / cuEq-fp32 — three-way agreement that exonerates
+   e3nn-fp32 / cuEq-fp32, three-way agreement that exonerates
    precision/backend and indicts the stress path). Deployment rule until the
    upstream fix: no Berendsen/Parrinello-style barostats on partially
    periodic MACE systems. Upstream issue with this minimal repro:
@@ -224,7 +224,7 @@ is premature**; wait for the MD line. Medium is the measured exception
    *This is the **bug manifestation, not a physical result**: with the
    ×17.8-undersized virial the barostat cannot find equilibrium, so both
    in-plane lattice constants inflate monotonically (~+20 % over 50 ps) and
-   walk straight out of the fp64 reference band — identically across
+   walk straight out of the fp64 reference band, identically across
    e3nn-fp64 / e3nn-fp32 / cuEq-fp32. Read it as "what the stress bug does to a
    barostat," **not** as thermal expansion. The three-way agreement is the
    evidence that exonerates precision/backend and indicts the stress path.*
@@ -233,8 +233,8 @@ is premature**; wait for the MD line. Medium is the measured exception
 
 | issue | consequence here |
 |---|---|
-| cuEq + fp64 reported broken upstream (MACE #1203, #1298) | did **not** reproduce on this stack: the cuEq/fp64 probe ran, matched the fp64 reference, and nsys shows real cuEq kernels (`segmented_polynomial_*` + fp64 `d884gemm`) — no silent fallback. The cell stays out of the headline matrix anyway: GA102 fp64 is hardware-inappropriate (finding 4) |
-| SM86 is not a tuned cuEq target (kernels are SM80/90/100+) | speedups here are a *lower bound*; verified real cuEq kernels run via Nsight (`segmented_polynomial_*`) — no silent fallback |
+| cuEq + fp64 reported broken upstream (MACE #1203, #1298) | did **not** reproduce on this stack: the cuEq/fp64 probe ran, matched the fp64 reference, and nsys shows real cuEq kernels (`segmented_polynomial_*` + fp64 `d884gemm`), no silent fallback. The cell stays out of the headline matrix anyway: GA102 fp64 is hardware-inappropriate (finding 4) |
+| SM86 is not a tuned cuEq target (kernels are SM80/90/100+) | speedups here are a *lower bound*; verified real cuEq kernels run via Nsight (`segmented_polynomial_*`), no silent fallback |
 | torch.compile × cuEq zero-gradient bug (cuEq #77) | torch.compile disabled everywhere |
 | MACE slab stress ×17.8 (this work, `90_diag_stress_hf.py`) | elastic constants via energy curvature; NPT relaxes ~18× slower than nominal |
 | consumer boost clocks drift | no root to lock clocks → SM clock/temp/power logged per measurement, medians of per-step laps reported |
@@ -273,7 +273,7 @@ a lab deciding *today*: [docs/engagement-memo.md](docs/engagement-memo.md).
 ## MPI communication share — a scale-out profiling demo
 
 Everything above is single-rank, single-GPU ASE. The scale-out question an SA
-must answer first is *when does adding ranks stop paying?* — so here is the
+must answer first is *when does adding ranks stop paying?* Here is the
 methodology on a workload that runs on the CPU head node today.
 
 **What was measured.** A fixed-size Lennard-Jones melt (500,000 atoms, 800 MD
@@ -283,7 +283,7 @@ run's LAMMPS loop-timing breakdown (Pair / Neigh / Comm / …) was parsed
 straight from the log.
 
 ![MPI comm share](results/figures/mpi_comm_share.png)
-*Comm share rises 0.7 %→9.0 % from 1→8 ranks (LJ melt, 500k atoms) — profile a
+*Comm share rises 0.7 %→9.0 % from 1→8 ranks (LJ melt, 500k atoms): profile a
 customer this way to find the rank count where communication eats the pair-time
 win and scale-out stops paying.*
 
@@ -298,10 +298,10 @@ As ranks rise on the fixed problem the communication share climbs (0.7 %→9.0 %
 while the pair (force-compute) share falls (84.6 %→70.1 %); wall time still
 drops (5.4× at 8 ranks) but the marginal return is shrinking. The rank count
 where the rising Comm tax overtakes the marginal Pair speedup is where
-scale-out stops paying — the single number to establish before committing a
+scale-out stops paying: the single number to establish before committing a
 customer to more nodes/GPUs.
 
-**Scope (honest).** Classical LJ, single node, one run per rank count — a
+**Scope (honest).** Classical LJ, single node, one run per rank count, a
 methodology demonstration, **not** MACE-in-LAMMPS. The MACE path at scale is
 LAMMPS ML-IAP (`pair_style mace`), where LAMMPS prints the *same* Pair/Comm
 breakdown, so this reading transfers directly; only the absolute Pair cost (a
@@ -315,9 +315,9 @@ and per-arm data: [docs/cudagraph-study.md](docs/cudagraph-study.md);
 code: `scripts/70–73`.*
 
 Finding 3 named the fix but did not run it. Part 2 captures the MACE force
-evaluation into a CUDA graph — fixed-topology path through the calculator's own
-converter, static I/O buffers, hand capture with `torch.cuda.graph` (no
-`torch.compile`; cuEq #77) — and measures what comes back. **Parity gate before
+evaluation into a CUDA graph (fixed-topology path through the calculator's own
+converter, static I/O buffers, hand capture with `torch.cuda.graph`; no
+`torch.compile`, cuEq #77) and measures what comes back. **Parity gate before
 any timing**: graph-replay forces match eager to max |ΔF| ≤ 8×10⁻⁷ eV/Å
 (fp32 roundoff) at every size.
 
@@ -333,18 +333,18 @@ was ~94 % host launch overhead — a graph collapses it; at 2,944 atoms kernels
 already fill the step, so there is nothing left for a graph to reclaim.*
 
 **The headline consequence: finding 1's break-even collapses at the force-eval
-level.** Side by side, cuEq + graph beats e3nn + graph at *every* size — ×7.1
+level.** Side by side, cuEq + graph beats e3nn + graph at *every* size: ×7.1
 at 140 atoms (1.88 vs 13.30 ms), the very size where eager cuEq loses; at
 2,944 atoms e3nn cannot even capture (OOM: graph pool + e3nn's 7.4 GiB working
 set exceeds 12 GB) where cuEq + graph fits easily. The eager crossover was
-never about kernel work — cuEq's many tiny kernels simply pay more launch
+never about kernel work: cuEq's many tiny kernels simply pay more launch
 dispatch than e3nn's few heavy ones. Remove the dispatch and cuEq wins
 everywhere; hence the matrix's second row.
 
 ![break-even transformation](results/figures/breakeven_graphera.png)
 *The same decision chart before and after: under eager dispatch the cuEq
 advantage dips below 1 (finding 1's break-even, as seen by this harness);
-under graph capture it never crosses — ×4.6–11.9 across 64–1,408 atoms.
+under graph capture it never crosses, holding ×4.6–11.9 across 64–1,408 atoms.
 Left panel: cuEq eager sits on a flat ~17 ms launch-overhead floor all the
 way through 1,408 atoms; the graph removes that floor.*
 
@@ -353,7 +353,7 @@ into *one* captured graph run at **1.04 ms/cell** — ×2.1 vs eager, ×1.7 vs
 replaying a single-cell graph 8 times (parity 5.8×10⁻⁷ eV/Å). For ensembles of
 small independent cells, don't just capture — batch the capture.
 
-**Honest boundary**: all of this is the *per-step ceiling* at frozen topology —
+**Honest boundary**: all of this is the *per-step ceiling* at frozen topology,
 the regime between neighbour-list rebuilds. Production MD needs periodic
 recapture or padded capture (MACE ships `padding_tools`) and end-to-end numbers
 including that cost; this section must not be cited as an end-to-end MD
@@ -367,15 +367,15 @@ per-call dispatch as the cost only a graph removes.
 - **Datacenter column**: the sweep harness is config-driven and re-runs
   unmodified on A100/H100 (fp64 at 1:2 changes the precision economics;
   SM80-tuned kernels should raise the cuEq column). Published water numbers
-  suggest ×3–5 at scale — our large model reaches that bracket at 2,944
+  suggest ×3–5 at scale; our large model reaches that bracket at 2,944
   atoms (×5.0); medium sits at ×2.4, small at ×1.4–1.7.
-- **Scaling out**: LAMMPS ML-IAP (Kokkos) is the supported multi-GPU path —
+- **Scaling out**: LAMMPS ML-IAP (Kokkos) is the supported multi-GPU path,
   the configuration behind NVIDIA's Oct 2025 LAMMPS numbers. Note the
   deployment subtlety: the ASE-side `enable_cueq=True` runtime conversion is
   not what LAMMPS consumes; LAMMPS takes the exported e3nn model through its
   own cuEquivariance-accelerated ML-IAP route. An ASE-vs-LAMMPS single-GPU
   step-time comparison on this card is the next measurement on the list.
-- **Model fix**: done — see finding 7 (`scripts/50_finetune_prep.py`,
+- **Model fix**: done; see finding 7 (`scripts/50_finetune_prep.py`,
   `scripts/53_finetune_swa.sh`, `scripts/55_ft_validation.py`). The benchmark
   numbers needed no re-run: they are model-fidelity-independent by
   construction.
