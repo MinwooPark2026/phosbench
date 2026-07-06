@@ -16,20 +16,21 @@ ratio FD / analytic                       :  17.81
 
 A fully periodic control with the **same calculator and the same script**
 (bulk Si, `pbc=[True, True, True]`) is consistent to 4 decimal places
-(ratio 1.0000), isolating the inconsistency to the partially periodic
+(ratio 1.0000). That isolates the inconsistency to the partially periodic
 geometry rather than the model or the FD setup.
 
 Because the energy surface itself is fine, every energy-derived quantity is
-unaffected — but everything that consumes the analytic virial silently
+unaffected, but everything that consumes the analytic virial silently
 breaks on slabs (details below).
 
 ## Environment
 
 - mace-torch 0.3.16, e3nn 0.4.4, ase 3.28.0, numpy 2.4.6
-- torch 2.11.0+cu128 — but the repro below runs on **CPU**, plain e3nn,
-  float64 (no cuEquivariance involved)
-- model: `mace_mp(model="medium-omat-0")`; the effect is expected to be
-  model-independent (calculator-level), happy to re-test others on request
+- torch 2.11.0+cu128, though the repro below runs on CPU with plain e3nn
+  at float64 (no cuEquivariance involved)
+- model: `mace_mp(model="medium-omat-0")`; we expect the effect to be
+  model-independent (it sits at the calculator level) and can re-test other
+  models on request
 - Linux x86_64 (Ubuntu 24.04)
 
 ## Minimal reproduction (self-contained, CPU, ~2 min)
@@ -84,7 +85,7 @@ slab they disagree by ~18x.
 - The ratio is approximately, but maybe not exactly, constant: independent
   strain-direction fits on the same slab give 17.8-17.9 (xx vs yy), which may
   point to a missing/partial virial contribution rather than a pure
-  volume-normalization slip — we did not attempt to localize the mechanism.
+  volume-normalization slip. We did not attempt to localize the mechanism.
 - Downstream effects we measured before finding the root cause:
   - stress-slope elastic constants come out ~18x too small, while
     energy-curvature fits on the same relaxed configurations give values in
@@ -92,8 +93,8 @@ slab they disagree by ~18x.
   - `Inhomogeneous_NPTBerendsen` (z-masked) runs away: the barostat balances
     the *unscaled* kinetic pressure against the ~18x-undersized virial, so the
     in-plane cell inflates monotonically (~+20 % over 50 ps at 300 K),
-    identically for e3nn/float64, e3nn/float32 and cuEq/float32 — i.e. the
-    failure is precision/backend-independent.
+    identically for e3nn/float64, e3nn/float32 and cuEq/float32, so the
+    failure is independent of precision and backend.
 - Possibly related (but, as far as we can tell, distinct) reports: #980
   (per-atom stress), #294/#222/#395 (training-data virial formats).
 
