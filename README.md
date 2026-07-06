@@ -9,9 +9,9 @@ DFT-quality MD at classical cost — but the headline acceleration numbers
 are water benchmarks on datacenter A100/H100s, throughput-first, and the
 closest independent study (arXiv:2510.23621) is likewise water-throughput,
 covering e3nn-vs-cuEq precision arms on an RTX 2080 Ti. A consumer GPU tells
-a different story: a workstation RTX card runs fp64 at 1/64 of fp32 throughput
-and has only 12 GB of VRAM. This study measures, on
-monolayer phosphorene (a maximally anisotropic 2D semiconductor), what it
+a different story: a GeForce RTX card runs fp64 at 1/64 of fp32 throughput and
+has only 12 GB of VRAM. This study measures, on monolayer phosphorene (a
+maximally anisotropic 2D semiconductor), what it
 takes to run **trustworthy production MD** on that hardware: when
 cuEquivariance pays off and when it does not, what fp32 does to *physical
 observables* (phonon dispersions, anisotropic elastic constants, energy
@@ -38,7 +38,7 @@ figure caption states the deployment decision it informs.
 > — the real risk was never the numbers, it was the AI model itself, which
 > silently got a key property wrong until we caught it and fixed it.
 
-For a lab running MACE-class potentials on a 12 GB RTX workstation:
+For a lab running MACE-class potentials on a 12 GB consumer GPU:
 
 | system size | backend & precision | why (measured) |
 |---|---|---|

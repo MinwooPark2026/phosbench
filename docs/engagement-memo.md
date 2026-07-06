@@ -1,7 +1,6 @@
-# Engagement memo — accelerating MLIP molecular dynamics on lab workstations
+# Engagement memo — accelerating MLIP molecular dynamics on consumer GPUs
 
-**To**: a university 2D-materials group running MACE-class potentials on RTX
-workstations
+**To**: a 2D-materials group running MACE-class potentials on consumer GPUs
 **Re**: workload characterization, bottleneck analysis, and a deployment
 recommendation for production MD on black-phosphorus systems
 **Basis**: measured on RTX 3080 Ti 12 GB / Ryzen 7 5800X, mace-torch 0.3.16 +

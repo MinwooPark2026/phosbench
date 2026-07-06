@@ -117,7 +117,7 @@ not) the error worth paying to reduce.
    the deployment decision it informs, e.g. "below ~N atoms stay on e3nn —
    host overhead dominates").
 2. `docs/engagement-memo.md` — 1-2 page mock SA engagement memo addressed to "a
-   university lab with RTX workstations": workload characterization table (data
+   materials group running MACE on consumer GPUs": workload characterization table (data
    types, IO, CPU↔GPU split), bottleneck quantification, recommendation matrix
    (model × precision × backend × system size) incl. datacenter column from
    published numbers. Highest JD-signal artifact.
