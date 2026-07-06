@@ -23,9 +23,10 @@ Design (load-bearing constraints, from the expert review):
     Perturbations must stay small enough that the frozen neighbour list remains
     physically valid - we assert the max displacement is well under the cutoff
     skin and report it.
-  * PARITY GATE: graph-replay forces vs eager forces on identical positions and
-    topology.  max|dF| must be ~float roundoff (< 1e-4 eV/A at fp32). If parity
-    fails, NO benchmark numbers exist.
+  * PARITY GATE: frozen-topology eager forces must first match the normal ASE
+    calculator path, then graph-replay forces must match frozen eager forces on
+    identical positions and topology. max|dF| must be ~float roundoff
+    (< 1e-4 eV/A at fp32). If parity fails, NO benchmark numbers exist.
 
 Usage (run on the GPU box via jobq):
     python scripts/70_cudagraph_gate.py --backend cueq --dtype float32 \
@@ -267,6 +268,29 @@ def run_gate(backend, dtype, nx, ny, model, device, tol, seed, out_path):
     print(f"[gate] eager forward OK: E={e_eager:.6f} eV, "
           f"|F|max={float(f_eager.abs().max()):.4f} eV/A", flush=True)
 
+    # 1b) Production calculator reference on the same geometry. This rebuilds the
+    # neighbor list through the normal ASE calculator path. Graph-vs-frozen parity is
+    # not enough; the frozen topology must also match the production calculator.
+    atoms_prod = atoms.copy()
+    atoms_prod.set_positions(perturbed)
+    atoms_prod.calc = calc
+    f_calc = torch.as_tensor(atoms_prod.get_forces(), dtype=f_eager.dtype,
+                             device=f_eager.device)
+    dF_topo = (f_eager - f_calc).abs()
+    max_dF_topo = float(dF_topo.max().item())
+    rms_dF_topo = float((dF_topo ** 2).mean().sqrt().item())
+    result["max_dF_frozen_vs_calculator_eV_per_A"] = max_dF_topo
+    result["rms_dF_frozen_vs_calculator_eV_per_A"] = rms_dF_topo
+    result["topology_matches_calculator"] = bool(max_dF_topo < tol)
+    print(f"[gate] frozen topology vs production calculator max|dF|="
+          f"{max_dF_topo:.3e} eV/A "
+          f"({'PASS' if result['topology_matches_calculator'] else 'FAIL'})",
+          flush=True)
+    if not result["topology_matches_calculator"]:
+        result["parity_pass"] = False
+        _write(out_path, result)
+        return 1
+
     # 2) Capture on the frozen topology, then replay on the SAME perturbed geometry.
     capture_error = None
     try:
@@ -317,7 +341,8 @@ def run_gate(backend, dtype, nx, ny, model, device, tol, seed, out_path):
     result["force_change_between_geoms"] = delta_between
     result["tracks_positions"] = bool(delta_between > 1e-3)
     result["parity_pass"] = bool(result["parity_pass"] and max_dF2 < tol
-                                 and result["tracks_positions"])
+                                 and result["tracks_positions"]
+                                 and result["topology_matches_calculator"])
 
     print(f"[gate] PARITY  max|dF|={max_dF:.3e} eV/A (rel {rel_dF:.1e}), "
           f"dE={dE:.3e} eV, 2nd-geom max|dF|={max_dF2:.3e}, "

@@ -225,9 +225,18 @@ def bench_size(backend, dtype, size, model, device, n_warmup, n_steps, tol, seed
         _, f_e = fe.eager(pg); f_e = f_e.clone()
         _, f_g = fe.replay(pg); f_g = f_g.clone()
         max_dF = float((f_g - f_e).abs().max().item())
+        atoms_prod = atoms.copy()
+        atoms_prod.set_positions(pg)
+        atoms_prod.calc = calc
+        f_calc = torch.as_tensor(atoms_prod.get_forces(), dtype=f_e.dtype,
+                                 device=f_e.device)
+        max_dF_topo = float((f_e - f_calc).abs().max().item())
         rec["parity_max_dF_eV_per_A"] = max_dF
-        rec["parity_pass"] = bool(max_dF < tol)
+        rec["max_dF_frozen_vs_calculator_eV_per_A"] = max_dF_topo
+        rec["topology_matches_calculator"] = bool(max_dF_topo < tol)
+        rec["parity_pass"] = bool(max_dF < tol and max_dF_topo < tol)
         print(f"[bench] inline parity max|dF|={max_dF:.3e} eV/A "
+              f"topology max|dF|={max_dF_topo:.3e} eV/A "
               f"({'PASS' if rec['parity_pass'] else 'FAIL'})", flush=True)
     except Exception as exc:  # noqa: BLE001
         capture_error = f"{type(exc).__name__}: {exc}"

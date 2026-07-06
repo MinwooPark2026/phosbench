@@ -37,8 +37,10 @@ capture is hand-rolled with `torch.cuda.graph`, whose private memory pool lets t
 `torch.autograd.grad` force computation allocate its transient buffers inside the
 graph and reuse them across replays.
 
-**Parity gate before any timing.** On identical positions and topology, graph-replay
-forces were compared to eager forces:
+**Parity gate before any timing.** The frozen-topology path first has to match the
+normal ASE calculator path, which rebuilds the neighbor list through the production
+route. On identical positions and topology, graph-replay forces were then compared
+to eager forces:
 
 | size | parity max\|ΔF\| (eV/Å) | ΔE (eV) |
 |------|------------------------|---------|

@@ -238,7 +238,7 @@ is premature**; wait for the MD line. Medium is the measured exception
 | cuEq + fp64 reported broken upstream (MACE #1203, #1298) | did **not** reproduce on this stack: the cuEq/fp64 probe ran, matched the fp64 reference, and nsys shows real cuEq kernels (`segmented_polynomial_*` + fp64 `d884gemm`), no silent fallback. The cell stays out of the headline matrix anyway: GA102 fp64 is hardware-inappropriate (finding 4) |
 | SM86 is not a tuned cuEq target (kernels are SM80/90/100+) | speedups here are a *lower bound*; verified real cuEq kernels run via Nsight (`segmented_polynomial_*`), no silent fallback |
 | torch.compile × cuEq zero-gradient bug (cuEq #77) | torch.compile disabled everywhere |
-| MACE slab stress ×17.8 (this work, `90_diag_stress_hf.py`) | elastic constants via energy curvature; NPT relaxes ~18× slower than nominal |
+| MACE slab stress ×17.8 (this work, `90_diag_stress_hf.py`) | elastic constants via energy curvature; in-plane NPT/barostat results are invalid |
 | consumer boost clocks drift | no root to lock clocks → SM clock/temp/power logged per measurement, medians of per-step laps reported |
 | ncu hardware counters need `NVreg_RestrictProfilingToAdminUsers=0` | kernel analysis via nsys timelines only (sufficient for time-share) |
 
@@ -250,8 +250,10 @@ conda create -n scicomp python=3.11 && conda activate scicomp
 pip install -r requirements.txt \
     --extra-index-url https://download.pytorch.org/whl/cu128
 # full transitive lock: docs/requirements-freeze.txt
-# one-time: structure + gates (fails loudly if your stack is broken)
-bash scripts/stage_a.sh
+# one-time: structure + gates. In the published run the physics gate returns
+# nonzero because every zero-shot foundation model fails; that negative gate is
+# part of the result, not a stack failure.
+bash scripts/stage_a.sh || true
 # sweeps / accuracy arms / profiling (hours; queue-friendly, resumable)
 python scripts/10_sweep_throughput.py --backends e3nn,cueq --dtypes float32 \
     --models small,medium,large,medium-omat-0 --modes md,force_call
@@ -260,8 +262,12 @@ python scripts/21_elastic.py && python scripts/23_elastic_recompute.py
 python scripts/22_md_stability.py
 bash scripts/30_profile_nsys.sh
 python scripts/40_make_plots.py && python scripts/41_error_budget.py
-# stretch: repair the armchair axis by fine-tuning on GAP-20 (Zenodo 4003703)
-python scripts/50_finetune_prep.py && bash scripts/51_finetune.sh
+# repair the armchair axis by fine-tuning on GAP-20 (Zenodo 4003703)
+python scripts/50_finetune_prep.py
+bash scripts/51_finetune.sh          # first pass, force-weighted; recorded underfit
+bash scripts/53_finetune_swa.sh      # stage-two energy-weighted SWA fix
+python scripts/55_ft_validation.py
+python scripts/42_model_fix_figure.py
 ```
 
 Pinned stack (verified): mace-torch 0.3.16 · cuequivariance(-torch/-ops) 0.10.0
@@ -320,7 +326,8 @@ Finding 3 named the fix but did not run it. Part 2 captures the MACE force
 evaluation into a CUDA graph (fixed-topology path through the calculator's own
 converter, static I/O buffers, hand capture with `torch.cuda.graph`; no
 `torch.compile`, cuEq #77) and measures what comes back. **Parity gate before
-any timing**: graph-replay forces match eager to max |ΔF| ≤ 8×10⁻⁷ eV/Å
+any timing**: the frozen topology first matches the normal ASE calculator path,
+then graph-replay forces match frozen eager to max |ΔF| ≤ 8×10⁻⁷ eV/Å
 (fp32 roundoff) at every size.
 
 | atoms | eager (ms/step) | graph (ms/step) | speedup | peak VRAM eager → graph |

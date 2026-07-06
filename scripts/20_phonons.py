@@ -45,15 +45,20 @@ MODEL_URLS = {
 
 
 def default_model() -> str:
-    """Stage-A winner from configs/model_choice.json if present, else mpa-0."""
+    """Stage-A winner if present; otherwise the documented zero-shot baseline."""
     try:
         payload = json.loads((REPO / "configs" / "model_choice.json").read_text())
         model = payload if isinstance(payload, str) else payload.get("model")
         if isinstance(model, str) and model:
             return model
+        if isinstance(payload, dict) and "medium-omat-0" in payload.get("details", {}):
+            print("[phosbench] no Stage-A winner; using medium-omat-0 as the "
+                  "documented zero-shot baseline. Pass --model for a fine-tuned "
+                  "model.", file=sys.stderr)
+            return "medium-omat-0"
     except (OSError, ValueError):
         pass
-    return "medium-mpa-0"
+    return "medium-omat-0"
 
 
 def make_calc_robust(backend: str, dtype: str, model: str, device: str):
@@ -151,7 +156,7 @@ def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--cells", default="e3nn/float64,e3nn/float32,cueq/float32")
     p.add_argument("--model", default=None,
-                   help="default: configs/model_choice.json, else medium-mpa-0")
+                   help="default: configs/model_choice.json winner, else medium-omat-0 baseline")
     p.add_argument("--supercell", default=DEFAULT_SUPERCELL)
     p.add_argument("--displacements", default="0.01,0.03,0.05")
     p.add_argument("--npoints", type=int, default=51)

@@ -62,15 +62,20 @@ MODEL_URLS = {
 
 
 def default_model() -> str:
-    """Stage-A winner from configs/model_choice.json if present, else mpa-0."""
+    """Stage-A winner if present; otherwise the documented zero-shot baseline."""
     try:
         payload = json.loads((REPO / "configs" / "model_choice.json").read_text())
         model = payload if isinstance(payload, str) else payload.get("model")
         if isinstance(model, str) and model:
             return model
+        if isinstance(payload, dict) and "medium-omat-0" in payload.get("details", {}):
+            print("[phosbench] no Stage-A winner; using medium-omat-0 as the "
+                  "documented zero-shot baseline. Pass --model for a fine-tuned "
+                  "model.", file=sys.stderr)
+            return "medium-omat-0"
     except (OSError, ValueError):
         pass
-    return "medium-mpa-0"
+    return "medium-omat-0"
 
 
 def make_calc_resolved(backend, dtype, model, device):

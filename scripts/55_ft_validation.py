@@ -77,6 +77,8 @@ def main() -> int:
                "da_pct": 100 * (a0 / LIT["a"] - 1),
                "db_pct": 100 * (b0 / LIT["b"] - 1)},
                "cells": {}, "lit": LIT, "env": env_metadata()}
+    phonon_dir = REPO / "results/raw/phonons_ft"
+    phonon_dir.mkdir(parents=True, exist_ok=True)
 
     # displacement per cell follows the hybrid policy derived in Stage D
     for backend, dtype, disp in (("e3nn", "float64", 0.01),
@@ -89,7 +91,7 @@ def main() -> int:
             ph = build_phonon(atoms0.copy(), calc, supercell=(4, 6, 1),
                               displacement=disp)
             band = band_path_SXGYS(ph, npoints=51)
-            np.savez(REPO / f"results/raw/phonons_ft/band_{backend}_{dtype}.npz",
+            np.savez(phonon_dir / f"band_{backend}_{dtype}.npz",
                      **{k: np.asarray(v) for k, v in band.items()
                         if k in ("distances", "frequencies_THz", "label_distances")},
                      labels=np.array(band["labels"]))
@@ -115,7 +117,6 @@ def main() -> int:
             print(f"    elastic FAILED: {exc!r}")
         summary["cells"][key] = rec
 
-    (REPO / "results/raw/phonons_ft").mkdir(parents=True, exist_ok=True)
     write_json(REPO / "results/raw/ft_validation.json", summary)
     print("FT_VALIDATION_DONE")
     return 0

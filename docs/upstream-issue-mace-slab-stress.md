@@ -82,10 +82,12 @@ slab they disagree by ~18x.
 
 ## Additional observations
 
-- The ratio is approximately, but maybe not exactly, constant: independent
-  strain-direction fits on the same slab give 17.8-17.9 (xx vs yy), which may
-  point to a missing/partial virial contribution rather than a pure
-  volume-normalization slip. We did not attempt to localize the mechanism.
+- The ratio is approximately constant: independent strain-direction fits on the
+  same slab give 17.8-17.9 (xx vs yy). A source review points to the non-periodic
+  neighbor-list cell extension leaking into the stress volume denominator:
+  `get_neighborhood()` expands the non-PBC z cell for `matscipy.neighbour_list`,
+  returns that expanded cell, and `compute_forces_virials()` divides by
+  `det(cell)`.
 - Downstream effects we measured before finding the root cause:
   - stress-slope elastic constants come out ~18x too small, while
     energy-curvature fits on the same relaxed configurations give values in

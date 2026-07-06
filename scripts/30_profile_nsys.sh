@@ -62,16 +62,17 @@ if ! command -v nsys >/dev/null 2>&1; then
 fi
 
 # Stage A's physics gate writes the winning foundation model to
-# configs/model_choice.json; default to it so Stage C traces THE model.
+# configs/model_choice.json; if no model passed, use the documented zero-shot
+# baseline so Stage C stays aligned with the README narrative.
 if [[ -z "$MODEL" ]]; then
     MODEL="$("$PY" -c '
 import json
 from pathlib import Path
 p = Path("configs/model_choice.json")
 d = json.loads(p.read_text()) if p.exists() else {}
-print(d.get("model") or d.get("winner") or d.get("choice") or "medium-mpa-0")
+print(d.get("model") or d.get("winner") or d.get("choice") or "medium-omat-0")
 ' 2>/dev/null || true)"
-    MODEL="${MODEL:-medium-mpa-0}"
+    MODEL="${MODEL:-medium-omat-0}"
 fi
 
 if [[ "$SMOKE" == 1 ]]; then

@@ -11,8 +11,8 @@ strain derivative of its own energy, independent of backend/precision/device
 
 Consequence for this study: stress-slope elastic constants are unusable on this
 geometry; energy-curvature fits (scripts/21_elastic.py crosscheck path) are the
-primary numbers, and the NPT barostat relaxes ~18x slower than its nominal taup
-(fixed point unchanged: zero reported stress is zero true stress).
+primary numbers, and in-plane NPT/barostat runs are invalid because the kinetic
+pressure is balanced against a wrongly normalized virial.
 
 Run: python scripts/90_diag_stress_hf.py [--model medium-omat-0] [--device cpu]
 """
