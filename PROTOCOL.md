@@ -1,12 +1,12 @@
 # phosbench — Measurement Protocol (frozen 2026-06-10)
 
-**Production MLIP MD on the GPUs university labs already own — a deployment case
+**Production MLIP MD on consumer GPUs — a deployment case
 study on black phosphorus.**
 
 Single material (monolayer phosphorene + bulk-BP Γ modes as context), full depth.
 Every figure answers a deployment decision, not a curiosity. Target hardware is a
-workstation RTX 3080 Ti (GA102, SM86, 12 GB) — deliberately: this is the hardware
-university labs actually own. Published A100/H100 numbers are imported as the
+workstation RTX 3080 Ti (GA102, SM86, 12 GB) — deliberately: this is the consumer
+GPU most researchers actually run on. Published A100/H100 numbers are imported as the
 "datacenter column" with explicit caveats.
 
 ## Prior art and claims discipline
