@@ -217,8 +217,8 @@ is premature**; wait for the MD line. Medium is the measured exception
    e3nn-fp32 / cuEq-fp32 — three-way agreement that exonerates
    precision/backend and indicts the stress path). Deployment rule until the
    upstream fix: no Berendsen/Parrinello-style barostats on partially
-   periodic MACE systems. Upstream issue with this minimal repro: in
-   preparation.
+   periodic MACE systems. Upstream issue with this minimal repro:
+   [ACEsuit/mace#1509](https://github.com/ACEsuit/mace/issues/1509).
 
    ![NPT lattice inflation](results/figures/npt_lattice.png)
    *This is the **bug manifestation, not a physical result**: with the
