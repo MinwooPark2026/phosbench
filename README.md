@@ -18,6 +18,8 @@ observables* (phonon dispersions, anisotropic elastic constants, energy
 drift, not force RMSE), and where the time actually goes (Nsight). Every
 figure caption states the deployment decision it informs.
 
+**A 4-minute walkthrough (video) → [youtu.be/44fmO8QmyGQ](https://youtu.be/44fmO8QmyGQ).**
+
 **The 2-page decision memo for a lab deciding today → [docs/engagement-memo.md](docs/engagement-memo.md).**
 
 > **Scope discipline**: this extends the published datacenter throughput
